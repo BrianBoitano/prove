@@ -89,3 +89,11 @@ Independent review reproduced close-after-release failure skipping child cleanup
 Durable nonces and request reservations precede I/O. Tests cover cooldown/deferral, partial successes, imported proofs, manifest-only registration promoted to a sealed result, fresh upgrade insufficiency, core mutation, no-clobber history and interruption recovery. Unsupported-only replies fail5; unsupported-only imported proofs fail4; no such reply can become a fake pending proof. Malformed local format types fail2 while future strings retain4.
 
 Online attestation presence is unverified until independent cached headers pass offline witness checking. Real submission, fresh completed proofs, independent node export, installed CLI and external feedback remain separate unfulfilled gates.
+
+## Explicit Bitcoin Core snapshot export
+
+Source: evidence.py. Evidence: tests/test_evidence.py. Main read the complete implementation, reran117 focused tests, then794 cumulative passes/1 prerequisite skip/3 existing upstream warnings in89.67s in the capped Python3.12 worker. Independent scoped review returned APPROVE after direct decimal, response-status, input-type and diagnostic-scrubbing probes.
+
+The exporter accepts explicit local config/cookie paths and only the three read-only RPC methods. Actual loopback tests check header authentication without credential-bearing argv, redirects/TLS/network failures, bounded retries and the shared deadline. Strict JSON preserves exact decimal progress without context rounding or unbounded exponent expansion. Stable-tip acquisition rechecks every selected active height, validates raw headers and the complete cache, and returns no partial output. All credentials in these tests are synthetic. No actual node or credential file was accessed.
+
+Separately, the main session submitted a generic no-model manifest and finalized result to the four public OpenTimestamps calendars. Each received pending proofs; one bounded upgrade retained those valid pending proofs without changing either core. This establishes the actual submission path, not a completed Bitcoin anchor. Independently acquired real chain evidence remains unresolved. Full verifier/reference, installed CLI and external feedback are still incomplete.
