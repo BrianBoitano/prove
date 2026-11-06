@@ -44,15 +44,30 @@ Data constraints: preserve NFC Unicode/uppercase/interior-space artifact names; 
 - [ ] Implement strict data validation with no filesystem/network/producer code execution beyond reading the package's fixed schema resource.
 - [ ] Run `bash .planning/worker.sh test tests/test_schema.py` and cumulative primitives tests. Do not commit or edit sibling modules. Write full evidence to the assigned task report and return concise status.
 
-### Task 3: Safe persistence and artifact receipts
+### Task 3: Descriptor-safe storage primitives
 
-Files: src/prove/filesystem.py, src/prove/store.py, src/prove/records.py, src/prove/fixture.py and owned tests. Uses the validated contract from Task2. Core uses generic artifacts by default; optional trace profile is explicit.
+Owned files will be src/prove/filesystem.py and tests/test_filesystem.py only. Consume schema.validate_artifact_path/validate_inventory_paths and ProveError; no receipt, scorer or network implementation in this task. Later store/verifier modules must reuse this boundary rather than reimplement unsafe Path.read_bytes calls on untrusted receipt content.
 
-- [ ] Write failing tests for freeze/seal/repeat/conflict, immutable IDs, path attacks, read races, interrupted writes, trace lifecycle/budget lower bounds and outcome coverage.
-- [ ] Implement descriptor-safe reads and snapshots, locking/recovery, atomic canonical cores and deterministic generated artifact records, preserving exact raw input bytes.
-- [ ] Run scoped/cumulative tests and obtain independent correctness/security review.
+Required interface: `Directory(root: Path)` context manager; `list_files(prefix: str='')->list[str]`; `read(path: str, limit: int=8388608)->bytes`; `digest(path: str)->tuple[str,int]`; `mkdirs(path: str)->None`; `copy_file_to(path: str, destination: Directory, destination_path: str)->tuple[str,int]`; `atomic_write(path: str, data: bytes, replace: bool=False)->None`; and `WriterLock(directory: Directory)` context manager plus `recover_lock(directory: Directory, expected_sha256: str)->None`.
 
-### Task 4: Read-only verification and independent conformance
+Root and every ancestor below it use descriptor-relative O_DIRECTORY/O_NOFOLLOW traversal. Open candidate files nonblockingly before fstat, so FIFOs cannot hang before type validation. Reject every nonregular file, links and path collisions; stream hashes/copies in bounded chunks and compare descriptor metadata and no-follow re-opened path identity after reading. Non-mutating read operations never create directories. Writers create parents safely beneath the opened destination root. atomic_write uses fsynced private temporary files, no-clobber publication by default and directory fsync; replace is explicit and used only for mutable state/proofs. Always preserve an existing immutable destination even across races. Clean only temporary files owned by the current operation.
+
+WriterLock creates .prove/lock exclusively, holds an OS flock for its lifetime and records a random ownership token/PID/time as local-only metadata. Release deletes only its own unchanged lock. Recovery explicitly matches the observed lock-file SHA256, obtains a nonblocking OS lock and verifies path identity before unlinking; never evict a live writer or delete by guessed PID liveness. Stale empty files must be recoverable by their observed digest. No credentials, global services, inference or unsafe recursive deletion.
+
+- [ ] Write failing tests for ordinary Unicode/case-preserving files, ancestor/final symlinks, FIFO/socket/device rejection, path swaps/read mutations, collision detection, bounded reads and streamed copies.
+- [ ] Add crash/error-injection and concurrent-writer tests: immutable no-clobber, temp cleanup, directory fsync boundaries, stale/mismatched/empty/live-lock recovery and replaced-lock ownership.
+- [ ] Implement only this safe storage layer; run scoped/cumulative tests in the worker and obtain independent security/correctness review.
+
+### Task 4: Generic receipt persistence and normalized records
+
+Files: src/prove/store.py, src/prove/records.py, src/prove/fixture.py and owned tests. Use the accepted schema and filesystem boundaries. Generic artifacts are the default, trace profile optional.
+
+- [ ] Freeze callable interfaces and meaningful failing tests for init/freeze/seal/repeat/conflict, immutable IDs, interrupted staging recovery, source/receipt overlap, trace lifecycle, budget lower bounds and score availability.
+- [ ] Implement canonical freeze, deterministic generic artifact records, supplied-trace consistency, resource/coverage states and snapshot finalization with result.json published last.
+- [ ] Add the domain-neutral deterministic fixture producer with pinned dataset and scores. Do not introduce a model runner or lab adapter into the core.
+- [ ] Run scoped/cumulative tests and independent review before verification consumers.
+
+### Task 5: Read-only verification and independent conformance
 
 Files: src/prove/verify.py, src/prove/scoring.py, tools/reference_verify.py, conformance/ and owned tests.
 
@@ -61,7 +76,7 @@ Files: src/prove/verify.py, src/prove/scoring.py, tools/reference_verify.py, con
 - [ ] Independently author a verifier sharing no production canonicalization/tree/scoring functions and check a fixed corpus.
 - [ ] Verify process-level network isolation and realistic size limits in the worker; map evidence to docs/ACCEPTANCE.md.
 
-### Task 5: Upstream OpenTimestamps and trusted chain evidence
+### Task 6: Upstream OpenTimestamps and trusted chain evidence
 
 Files: src/prove/anchors.py, src/prove/evidence.py, local integration evidence and owned tests.
 
@@ -70,7 +85,7 @@ Files: src/prove/anchors.py, src/prove/evidence.py, local integration evidence a
 - [ ] Implement local Bitcoin Core RPC export with credentials from config/cookie, stable active-chain snapshot and explicit provenance. No deployment of a new node in this task.
 - [ ] Submit a fresh generic manifest and result to free calendars, preserve pending work, and later check completed anchors with independent evidence if available. Document any unavailable prerequisite without substituting mocks.
 
-### Task 6: Standalone CLI, distribution and generic integrations
+### Task 7: Standalone CLI, distribution and generic integrations
 
 Files: src/prove/cli.py, src/prove/__main__.py, optional adapter module, pyproject.toml, README.md, docs/QUICKSTART.md, docs/INTEGRATION.md, docs/TESTING_HANDOFF.md and feedback schema/template.
 
