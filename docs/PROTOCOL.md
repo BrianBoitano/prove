@@ -85,6 +85,8 @@ Both fixture JSON objects and their sample entries are closed shapes: no unknown
 
 Report format prove.verification.v1 includes receipt/registration IDs, scope full|inclusion, policy anchored|integrity-only, selected attempt and outcome, artifact_integrity, record_integrity, score evidence, manifest_anchor, result_anchor, chain_view, model evidence, issuer_identity unverified, execution unverified, coverage and budget-compliance state, errors and limitations. No bare verified evaluation badge. Full integrity checks score recomputation when fixture-exact-v1 is selected; failures cannot disappear behind an anchor status.
 
+Reports include the selected minimum_confirmations threshold. A rejected policy/threshold is null in the report rather than reflecting an arbitrary invalid input. Independent failures use deterministic precedence invalid2, operational5, unsupported4, insufficient3, success0; the presentation cap on error messages never changes that precedence. Reports omit oversized cache source/exported_at strings (over2048 characters) as null and identify them in chain_view.omitted_fields. This affects presentation only, never cache validation or proof checking. Integrity-only leaves proofs and chain data not_checked. Inclusion success is membership_checked, never a full record-consistency verdict.
+
 | Evidence and selected policy | Exit |
 |---|---|
 | Required hashes/structure/membership and optional built-in score checks pass; both completed anchors meet selected chain policy | 0 anchored |
