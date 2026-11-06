@@ -28,6 +28,20 @@ def encode(value):
     return ctx.getbytes()
 
 
+def test_raw_calendar_timestamp_preflight_before_operation_evaluation(monkeypatch):
+    from prove import anchors
+    stamp = Timestamp(bytes.fromhex(DIGEST))
+    stamp.ops.add(OpSHA256()).attestations.add(PendingAttestation("https://a.pool.opentimestamps.org"))
+    encoded = encode(stamp)
+    assert anchors.parse_timestamp(encoded, bytes.fromhex(DIGEST)).msg == bytes.fromhex(DIGEST)
+    calls = []
+    monkeypatch.setattr(OpSHA256, "__call__", lambda *a: calls.append(a))
+    for data in (encoded+b"trailing", b"x"*10001, b"\x08"*65):
+        with pytest.raises(ProveError):
+            anchors.parse_timestamp(data, bytes.fromhex(DIGEST))
+    assert calls == []
+
+
 def detached(stamp):
     return encode(DetachedTimestampFile(OpSHA256(), stamp))
 

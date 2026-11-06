@@ -99,6 +99,24 @@ def _load(data: bytes, expected_sha256: str) -> Timestamp:
         raise ProveError(f"invalid detached timestamp: {error}") from error
 
 
+def parse_timestamp(data: bytes, commitment: bytes) -> Timestamp:
+    """Bound raw calendar framing before evaluating standard upstream operations."""
+    if not isinstance(data, bytes) or len(data) > 10000:
+        raise ProveError("calendar timestamp exceeds its byte limit")
+    if not isinstance(commitment, bytes) or not 1 <= len(commitment) <= 4096:
+        raise ProveError("invalid calendar commitment")
+    try:
+        ctx = BytesDeserializationContext(data)
+        _preflight_timestamp(ctx)
+        ctx.assert_eof()
+        ctx = BytesDeserializationContext(data)
+        stamp = Timestamp.deserialize(ctx, commitment, _recursion_limit=MAX_TIMESTAMP_DEPTH)
+        ctx.assert_eof()
+        return stamp
+    except (DeserializationError, ValueError) as error:
+        raise ProveError("invalid raw calendar timestamp") from error
+
+
 def _evidence(stamp: Timestamp):
     bitcoin = []
     pending = unsupported = 0

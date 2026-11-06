@@ -77,3 +77,15 @@ The parser uses standard pinned upstream operations and attestation deserializer
 The cache boundary validates closed metadata and every cached80-byte header hash, including unused entries, then exposes immutable block records and defensive summaries. It reports external_explicit trust and cached_only freshness. Witness policy selects an actual checked qualifying Bitcoin path; bad extras are counted, no valid cached witness plus a contradiction fails, and missing cache remains insufficient_chain. Synthetic caches and historical published bytes establish implementation behavior, not independently acquired live node evidence.
 
 No real calendar submission, fresh completed anchor, RPC export or current-chain observation was performed by this phase. Those remain explicit acceptance gaps. This module cannot obtain network authority from pending proof URLs or local receipt state.
+
+## Calendar transport and durable proof actions
+
+Source: _http.py, transport.py, timestamping.py and the bounded raw-Timestamp parser addition in anchors.py. Evidence: tests/test_http.py, test_transport.py, test_timestamping.py and parser regressions. Final main cumulative run:677 passed,1 prerequisite skip,3 upstream warnings in78.24s. Scoped independent re-review returned APPROVE after reproducing and rechecking three defects. No actual public-calendar call was made during implementation.
+
+Actual loopback tests exercise hung/dribbling bodies, TLS and framing failures, stdin/-c callers, bounded IPC and real owned-child cleanup. The final launcher runs a fixed Python module, with data in bounded pipes and no caller main-guard requirement. Non-200 bodies stay remote; scrubbed bounded status/retry metadata crosses IPC. Standard verified TLS and no redirects remain mandatory.
+
+Independent review reproduced close-after-release failure skipping child cleanup, large discarded error pages suppressing Retry-After, and repeated capped commands starving later origins. Test-first fixes drain cleanup without masking primary errors, retain scheduling metadata without reading discarded bodies, and prioritize never-attempted/oldest-due work within each target before round-robin selection. A two-command case now reaches all12 origins while retaining the eight-request cap.
+
+Durable nonces and request reservations precede I/O. Tests cover cooldown/deferral, partial successes, imported proofs, manifest-only registration promoted to a sealed result, fresh upgrade insufficiency, core mutation, no-clobber history and interruption recovery. Unsupported-only replies fail5; unsupported-only imported proofs fail4; no such reply can become a fake pending proof. Malformed local format types fail2 while future strings retain4.
+
+Online attestation presence is unverified until independent cached headers pass offline witness checking. Real submission, fresh completed proofs, independent node export, installed CLI and external feedback remain separate unfulfilled gates.
