@@ -241,6 +241,12 @@ Test actual loopback HTTP from unrelated shadow CWD and hostile PYTHONPATH, plus
 
 Files: src/prove/cli.py, src/prove/__main__.py, optional adapter module, pyproject.toml, README.md, docs/QUICKSTART.md, docs/INTEGRATION.md, docs/TESTING_HANDOFF.md and feedback schema/template.
 
+- [ ] Exercise failing subprocess tests for generic init/pre-register/seal/inspect/verify/proof/upgrade/evidence commands and policy exit codes.
+- [ ] Ship generic artifact ingestion first. Add data-only optional Inspect JSON import only after core is useful without it. Research-project usage belongs in external handoff docs, not core behavior.
+- [ ] Build wheel/sdist in worker, install each into clean isolated environments, complete the domain-neutral quickstart with networking disabled, and verify packaged examples/vectors and dependency/license notices.
+- [ ] Run full acceptance audit and a frontier independent adversarial review. Fix material issues and rerun affected checks. Do not let reviewer approval replace direct testing.
+- [ ] Produce exact candidate version/commit/artifact hashes, testing prompt and machine-readable feedback template. The external session must document commands, environment, reproduced bugs and scientific-claim limits. Pause at the user-requested testing boundary only after the actual candidate and audit justify it.
+
 #### Task 7a: Generic installed CLI surface
 
 Execute after Task5b acceptance. Own `src/prove/cli.py`, passive `__init__.py`, `__main__.py`, static packaged `data/examples/basic/`, focused package-data changes in pyproject.toml, README.md, docs/QUICKSTART.md, docs/INTEGRATION.md, examples/basic/README.md and tests/test_cli.py/test_resources.py. Do not change accepted backend modules, version/dependencies/license, conformance assets, main-owned adversarial tests, readiness/review/handoff docs or infrastructure. Research projects remain ordinary external consumers. No model/provider/Inspect SDK or project-specific behavior; optional importer is separate. Main owns clean distribution/matrix/whole-candidate acceptance afterward.
@@ -271,11 +277,6 @@ Canonical conformance assets live in prove/data/conformance and generic example 
 
 Write subprocess RED tests before source: help/version/entrypoints/argument errors; entire no-model generic workflow; every command/backend classification; optional anchoring failure/interruption retaining durable cores/IDs; pending/invalid/unsupported and synthetic completed anchors; false fixture math; inclusion-only after original receipt deletion; proof-output self-poisoning/aliases; no-clobber and unchanged source bytes; explicit recovery; no producer/model execution and no private service dependency. Tests may mock online backends in controlled child harnesses, but actual public calls remain main-owned. Run tests/builds only in capped workers. Installed clean wheel/sdist/matrix/offline audit and final handoff are later acceptance, not satisfied by an editable CLI run.
 
-- [ ] Exercise failing subprocess tests for generic init/pre-register/seal/inspect/verify/proof/upgrade/evidence commands and policy exit codes.
-- [ ] Ship generic artifact ingestion first. Add data-only optional Inspect JSON import only after core is useful without it. Research-project usage belongs in external handoff docs, not core behavior.
-- [ ] Build wheel/sdist in worker, install each into clean isolated environments, complete the domain-neutral quickstart with networking disabled, and verify packaged examples/vectors and dependency/license notices.
-- [ ] Run full acceptance audit and a frontier independent adversarial review. Fix material issues and rerun affected checks. Do not let reviewer approval replace direct testing.
-- [ ] Produce exact candidate version/commit/artifact hashes, testing prompt and machine-readable feedback template. The external session must document commands, environment, reproduced bugs and scientific-claim limits. Pause at the user-requested testing boundary only after the actual candidate and audit justify it.
 
 ## Progress ledger
 
