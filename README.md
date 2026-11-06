@@ -6,7 +6,9 @@ Prove is a planned open source protocol and Python CLI for verifiable AI evaluat
 
 It will bind an evaluation plan, recorded artifacts and reported results to commitments anchored with OpenTimestamps. Verification will distinguish artifact integrity from claims about execution, model identity, timing and scientific validity.
 
-**Status: design review. There is no working CLI or released Python package yet.** Commands in the plan are proposed interfaces.
+**Status: standalone CLI implementation in progress; no released Python package yet.** Commands in the plan are proposed interfaces until their implementation and installation checks pass.
+
+Prove is independent of any particular benchmark, model, provider or research project. Its primary workflow uses generic manifests and output directories. Harness importers are optional conveniences; basic installation and verification must not require them.
 
 - [Project plan](PLAN.md): scope, protocol decisions, milestones and release gates.
 - [Threat model](docs/THREAT_MODEL.md): attacks, defenses and remaining trust.
