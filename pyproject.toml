@@ -26,7 +26,9 @@ Repository = "https://github.com/TriplePassLabs/prove"
 where = ["src"]
 
 [tool.setuptools.package-data]
-prove = ["data/schemas/*.json"]
+prove = ["data/schemas/*.json", "data/conformance/*.json", "data/conformance/*.md",
+         "data/conformance/cases/*.json", "data/examples/basic/*.json",
+         "data/examples/basic/*.md", "data/examples/basic/outputs/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
