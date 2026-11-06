@@ -10,7 +10,7 @@ The user objective is a rigorously critiqued standalone Prove CLI ready for exte
 | Easy independent installation | Versioned wheel/sdist, clean pip and isolated CLI installs outside source checkout, packaged schemas/examples/version/help | Metadata written; distribution not built or accepted |
 | Canonical identities and trees | Independent vectors, invalid-encoding/depth/type tests, correct empty/odd trees and exact inclusion consumption | Task1 accepted:33 scoped tests plus independent review; later conformance corpus pending |
 | Versioned contracts | Closed interoperable static schemas, typed/direct binding checks and malformed/unsupported behavior | Task2 accepted at0771498:204 contract tests plus33 primitives; independent re-review approved |
-| Safe storage | No-follow ancestors/files, FIFO rejection, read-race tests, streamed hashing/copies and directory fsync | Task3 implementation active; not accepted |
+| Safe storage | No-follow ancestors/files, FIFO rejection, read-race tests, streamed hashing/copies and directory fsync | Task3 accepted:106 filesystem checks/343 cumulative, independent namespace/lock/close-failure probes approved; receipt persistence remains separate |
 | Atomic freeze/seal/recovery | Durable immutable cores, no-clobber finalization, one writer, live/stale-lock handling and interruption tests | Not implemented |
 | Generic artifact records | Case-preserving ordinary names, deterministic snapshots/tree, multiple attempts as distinct receipt dirs | Contract written; not implemented |
 | Optional trace consistency | Open-sample lifecycle, indices/retry binding, exact terminal outcome, coverage and known-subtotal budget bounds | Contract written; not implemented |

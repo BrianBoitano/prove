@@ -22,6 +22,16 @@ Main review added direct checks implied by the generic contract: generated artif
 
 Final main-session cumulative rerun:237 tests passed in0.31s on Python3.12 in the capped worker (204 contracts,33 primitives). Independent scoped re-review returned APPROVED. These validators deliberately do not authenticate cache/model/issuer claims, read artifacts, verify whole-trace history, recompute arbitrary scores or validate Bitcoin header hashes; later consumers must supply those checks.
 
-## Filesystem, persistence and later consumers
+## Descriptor-safe filesystem and writer locks
 
-Task3 is active. No acceptance or readiness claim yet. Later review entries must record actual source/commit boundaries, reproduced findings, regression tests, main-session verification and remaining limits. Reviewer approval alone is never empirical evidence that a candidate works.
+Source: src/prove/filesystem.py. Evidence: tests/test_filesystem.py and independently owned tests/test_filesystem_adversarial.py. Main-session cumulative rerun:343 passed in1.81s in the capped Python3.12 worker, including106 filesystem cases. Scoped independent re-review returned APPROVED after direct fault-injection probes.
+
+The first green implementation was rejected. Root-ancestor replacements could evade reads and destination publication; lock acquisition repeated that mistake at .prove. The corrected implementation retains directory identities and checks reachability from the opened receipt root. Enumeration now applies path and prefix-collision rules. File and ancestor-publication fsync failures cannot report success. Lock acquisition is nonblocking, recovery binds the complete bounded file through EOF, and live-writer/empty-lock races have process-level regressions.
+
+Repeated review exposed a systemic descriptor-ownership defect: close-after-release EIO could trigger a second close, mask the original failure and leak a sibling descriptor. A fresh implementer replaced scattered cleanup with one ownership mechanism that relinquishes descriptors before closing, drains all remaining cleanup and preserves primary exceptions. Meaningful RED cases preceded the fix. Direct reviewer probes for rewalk, enumeration, failed opening, stream and acquisition failures returned operational code5 with zero descriptor leaks and zero repeated closes. Minimal context reentry guards preserve existing ownership.
+
+This covers the declared opened-root boundary and detectable replacements before its checks. It is not a sandbox against an actor with unrestricted same-user filesystem control after the last check, nor a hardware power-loss proof. Application-level receipt staging, interrupted-finalization recovery and durability repair for hash-identical reuse are later persistence requirements.
+
+## Receipt persistence and later consumers
+
+Not implemented or accepted yet. Later review entries must record actual source/commit boundaries, reproduced findings, regression tests, main-session verification and remaining limits. Reviewer approval alone never establishes whole-candidate readiness.
