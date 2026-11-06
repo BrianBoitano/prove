@@ -1,6 +1,8 @@
 # Prove
 
-Prove is a planned open source protocol and Python CLI for verifiable AI evaluation receipts, developed by TriplePass Labs.
+Prove is a planned open source protocol and Python CLI for verifiable AI evaluation receipts, developed by [TriplePass Labs](https://github.com/TriplePassLabs). Created and maintained by [Christopher Ayers](https://github.com/BrianBoitano).
+
+[Lab website](https://triplepasslabs.com) · [GitHub organization](https://github.com/TriplePassLabs) · [Founder profile](https://github.com/BrianBoitano)
 
 It will bind an evaluation plan, recorded artifacts and reported results to commitments anchored with OpenTimestamps. Verification will distinguish artifact integrity from claims about execution, model identity, timing and scientific validity.
 

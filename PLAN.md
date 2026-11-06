@@ -120,6 +120,6 @@ Three independent external adopters means three unaffiliated maintainers or rese
 
 ## Costs and open decisions
 
-This design phase uses existing tools at no new spend. Public calendars currently offer free submissions. Future API evaluations, hosting and any Bitcoin node storage/network costs require a separately costed roster and hard budget. The repository is BrianBoitano/prove; Chris selected public visibility and Apache-2.0 on 2026-11-05. The PyPI distribution and CLI command names still need availability/conflict checks before release; Prove is a working product name. Do not reuse private project implementation merely because public receipts are available.
+This design phase uses existing tools at no new spend. Public calendars currently offer free submissions. Future API evaluations, hosting and any Bitcoin node storage/network costs require a separately costed roster and hard budget. The repository is TriplePassLabs/prove; Chris selected public visibility and Apache-2.0 on 2026-11-05, then moved Prove under the business organization. The PyPI distribution and CLI command names still need availability/conflict checks before release; Prove is a working product name. Do not reuse private project implementation merely because public receipts are available.
 
 G0 can finish with an explicit chain-evidence acquisition prerequisite; G2 cannot pass without satisfying it. G1 still requires Chris's approval after the adversarial review, as requested. No implementation is authorized by the presence of this plan.
