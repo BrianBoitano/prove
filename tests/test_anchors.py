@@ -217,11 +217,11 @@ def test_upstream_duplicate_ops_and_message_size_fail_closed(modules):
 def test_depth_boundary_and_preflight_before_any_operation(modules, monkeypatch):
     anchors, _ = modules
     att = b"\x00" + encode(BitcoinBlockHeaderAttestation(1))
-    assert anchors.inspect(PREFIX + b"\x08" * 63 + att, DIGEST)["bitcoin_heights"] == [1]
+    assert anchors.inspect(PREFIX + b"\x08" * (anchors.MAX_TIMESTAMP_DEPTH - 1) + att, DIGEST)["bitcoin_heights"] == [1]
     def forbidden(*args):
         pytest.fail("Operation evaluated before full preflight accepted framing")
     monkeypatch.setattr(Op, "__call__", forbidden)
-    for bad in (PREFIX + b"\x08" * 64 + att,
+    for bad in (PREFIX + b"\x08" * anchors.MAX_TIMESTAMP_DEPTH + att,
                 PREFIX + b"\x08" + att + b"trailing",
                 PREFIX + b"\xff\x08" + att + b"\xfe"):
         assert_error(lambda: anchors.inspect(bad, DIGEST))

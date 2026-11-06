@@ -19,7 +19,8 @@ from .errors import ProveError
 
 
 MAX_PROOF_BYTES = 16 * 1024 * 1024
-MAX_TIMESTAMP_DEPTH = 64
+# Match the pinned upstream timestamp decoder's default recursion policy.
+MAX_TIMESTAMP_DEPTH = 256
 MAX_TIMESTAMP_ITEMS = 100000
 
 

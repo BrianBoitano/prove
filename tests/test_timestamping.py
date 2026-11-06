@@ -360,7 +360,7 @@ def test_reply_with_valid_own_depth_but_excessive_merged_depth_preserves_old(rec
     from opentimestamps.core.serialize import BytesSerializationContext
     stamp = Timestamp(hashlib.sha256((receipt/"manifest.json").read_bytes()).digest())
     leaf = stamp
-    for _ in range(63):
+    for _ in range(client.anchors.MAX_TIMESTAMP_DEPTH - 1):
         leaf = leaf.ops.add(OpSHA256())
     leaf.attestations.add(PendingAttestation(ORIGIN))
     old = client._encode(stamp)
