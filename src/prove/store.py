@@ -12,7 +12,7 @@ import stat
 from . import canonical, records, schema
 from .errors import ProveError
 from .filesystem import Directory, WriterLock, _Descriptors, _contains_directory, _directory_names, _problem, _same
-from .paths import validate_paths
+from .paths import validate_path, validate_paths
 
 
 _ROOT_FILES = {"manifest.json", "result.json", "records.jsonl"}
@@ -20,6 +20,8 @@ _ROOT_DIRS = {"artifacts", "proofs", ".prove"}
 _TOKEN = re.compile(r"[0-9a-f]{32}\Z")
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 _JOURNAL = ".prove/seal.json"
+_PENDING = ".prove/pending-write.json"
+_PENDING_FORMAT = "prove.pending-write.v1"
 
 
 def _require(condition: bool, message: str) -> None:
@@ -50,17 +52,132 @@ def _canonical_object(data: bytes, label: str) -> dict:
     return value
 
 
-def _root(directory: Directory) -> set[str]:
+def _pending(directory: Directory) -> dict | None:
+    data = _optional_read(directory, _PENDING, limit=4096)
+    if data is None:
+        return None
+    value = _canonical_object(data, "pending publication")
+    _require(set(value) == {"format", "parent", "temp", "final", "sha256", "bytes", "registration_id", "receipt_id"},
+             "invalid pending publication fields")
+    _require(isinstance(value["format"], str), "invalid pending publication format")
+    if value["format"] != _PENDING_FORMAT:
+        raise ProveError("unsupported pending publication format", code=4)
+    for field in ("parent", "temp", "final", "sha256", "registration_id"):
+        _require(isinstance(value[field], str), f"invalid pending publication {field}")
+    _require(type(value["bytes"]) is int and 0 <= value["bytes"] <= canonical.MAX_SAFE_INTEGER,
+             "invalid pending publication bytes")
+    _require(_DIGEST.fullmatch(value["sha256"]) is not None and _DIGEST.fullmatch(value["registration_id"]) is not None,
+             "invalid pending publication digest")
+    _require(value["receipt_id"] is None or (isinstance(value["receipt_id"], str) and _DIGEST.fullmatch(value["receipt_id"]) is not None),
+             "invalid pending publication receipt id")
+    _require(len(value["temp"]) == 43 and value["temp"].startswith(".prove-tmp-")
+             and all(char in "0123456789abcdef" for char in value["temp"][11:]) and value["temp"] != value["final"],
+             "invalid pending publication temporary")
+    if value["parent"]:
+        validate_path(value["parent"], limit=2048)
+    validate_path(value["final"], limit=2048)
+    parent, _, leaf = value["final"].rpartition("/")
+    _require(parent == value["parent"] and leaf and "/" not in value["temp"], "invalid pending publication path")
+    return value
+
+
+def _root(directory: Directory, *, allow_pending: bool = False) -> set[str]:
     try:
         names = set(_directory_names(directory.fd))
+        pending = _pending(directory) if allow_pending and ".prove" in names else None
         for name in names:
-            _require(name in _ROOT_FILES | _ROOT_DIRS, f"unknown receipt-root entry: {name!r}")
+            allowed = name in _ROOT_FILES | _ROOT_DIRS
+            allowed = allowed or (pending is not None and pending["parent"] == "" and name == pending["temp"])
+            _require(allowed, f"unknown receipt-root entry: {name!r}")
             info = os.stat(name, dir_fd=directory.fd, follow_symlinks=False)
-            expected = stat.S_ISREG if name in _ROOT_FILES else stat.S_ISDIR
+            expected = stat.S_ISREG if name in _ROOT_FILES or (pending is not None and name == pending["temp"]) else stat.S_ISDIR
             _require(expected(info.st_mode), f"invalid receipt-root entry type: {name!r}")
         return names
     except OSError as error:
         raise _problem(error, "cannot inspect receipt root") from error
+
+
+def _authorize_pending(pending: dict, manifest: dict, result: dict | None) -> None:
+    manifest_data = canonical.dumps(manifest)
+    _require(pending["registration_id"] == hashlib.sha256(manifest_data).hexdigest(), "pending publication registration mismatch")
+    if result is None:
+        _require(pending["receipt_id"] is None and pending["parent"] == "" and pending["final"] == "manifest.json",
+                 "pending publication is not a registration write")
+        _require(pending["sha256"] == hashlib.sha256(manifest_data).hexdigest() and pending["bytes"] == len(manifest_data),
+                 "pending publication manifest bytes mismatch")
+        return
+    result_data = canonical.dumps(result)
+    _require(pending["receipt_id"] == hashlib.sha256(result_data).hexdigest(), "pending publication receipt mismatch")
+    target = pending["final"]
+    _require(target in {"records.jsonl", "result.json"} or target.startswith("artifacts/"), "invalid pending publication target")
+    if target == "records.jsonl":
+        expected = result["records"]
+        _require(pending["sha256"] == expected["sha256"] and pending["bytes"] == expected["bytes"],
+                 "pending publication records bytes mismatch")
+    elif target == "result.json":
+        _require(pending["sha256"] == hashlib.sha256(result_data).hexdigest() and pending["bytes"] == len(result_data),
+                 "pending publication result bytes mismatch")
+    if target.startswith("artifacts/"):
+        artifact = target[len("artifacts/"):]
+        expected = result["inventory"].get(artifact)
+        temporary_artifact = f"{pending['parent'][len('artifacts/'):]}/{pending['temp']}" if pending["parent"] != "artifacts" else pending["temp"]
+        _require(expected is not None and temporary_artifact not in result["inventory"]
+                 and pending["sha256"] == expected["sha256"] and pending["bytes"] == expected["bytes"],
+                 "pending publication artifact is not authorized")
+
+
+def _set_pending(directory: Directory, manifest: dict, result: dict | None, path: str, digest: str, size: int) -> dict:
+    parent, _, final = path.rpartition("/")
+    pending = {"format": _PENDING_FORMAT, "parent": parent, "temp": f".prove-tmp-{secrets.token_hex(16)}",
+               "final": path, "sha256": digest, "bytes": size, "registration_id": canonical.digest(manifest),
+               "receipt_id": None if result is None else hashlib.sha256(canonical.dumps(result)).hexdigest()}
+    _authorize_pending(pending, manifest, result)
+    directory.atomic_write(_PENDING, canonical.dumps(pending), replace=True)
+    _persist_expected(directory, _PENDING, hashlib.sha256(canonical.dumps(pending)).hexdigest(), len(canonical.dumps(pending)))
+    return pending
+
+
+def _clear_pending(directory: Directory) -> None:
+    directory.unlink_file(_PENDING)
+
+
+def _reconcile_pending(directory: Directory, manifest: dict, result: dict | None) -> None:
+    pending = _pending(directory)
+    if pending is None:
+        return
+    _authorize_pending(pending, manifest, result)
+    temporary = f"{pending['parent']}/{pending['temp']}" if pending["parent"] else pending["temp"]
+    # The owned record is durable before destination-parent creation begins.
+    # A valid journal authorizes these same directories during finalization.
+    if pending["parent"]:
+        directory.mkdirs(pending["parent"])
+    directory.unlink_file(temporary, missing_ok=True)
+    _clear_pending(directory)
+
+
+def _publish_owned(directory: Directory, manifest: dict, result: dict | None, path: str, data: bytes,
+                   *, limit: int = canonical.MAX_JSON_BYTES) -> None:
+    existing = _optional_read(directory, path, limit=limit)
+    if existing is not None:
+        _require(existing == data, f"immutable file conflicts: {path!r}")
+        _persist_expected(directory, path, hashlib.sha256(data).hexdigest(), len(data))
+        return
+    pending = _set_pending(directory, manifest, result, path, hashlib.sha256(data).hexdigest(), len(data))
+    with directory.tracked_temporary(pending["temp"]):
+        directory.atomic_write(path, data)
+    _persist_expected(directory, path, pending["sha256"], pending["bytes"])
+    _clear_pending(directory)
+
+
+def _copy_owned(directory: Directory, source: str, manifest: dict, result: dict, path: str) -> tuple[str, int]:
+    entry = result["inventory"][path[len("artifacts/"):]]
+    pending = _set_pending(directory, manifest, result, path, entry["sha256"], entry["bytes"])
+    with directory.tracked_temporary(pending["temp"]):
+        copied = directory.copy_file_to(source, directory, path)
+    _require(copied == (pending["sha256"], pending["bytes"]), f"staged artifact changed: {path!r}")
+    _persist_expected(directory, path, pending["sha256"], pending["bytes"])
+    _clear_pending(directory)
+    return copied
 
 
 def _manifest(directory: Directory) -> dict:
@@ -93,12 +210,13 @@ def register(manifest: dict, receipt: Path) -> str:
     schema.validate_manifest(canonical.loads(frozen))
     registration_id = hashlib.sha256(frozen).hexdigest()
     with Directory(receipt) as directory:
-        _root(directory)
+        _root(directory, allow_pending=True)
         with WriterLock(directory):
+            _reconcile_pending(directory, manifest, None)
             names = _root(directory)
             if _optional_read(directory, "manifest.json") is None:
                 _require(names <= {".prove"}, "new registration requires an otherwise empty receipt root")
-            _publish_exact(directory, "manifest.json", frozen)
+            _publish_owned(directory, manifest, None, "manifest.json", frozen)
             _require(directory.read("manifest.json") == frozen, "manifest changed during registration")
     return registration_id
 
@@ -229,14 +347,14 @@ def _finalize(directory: Directory, manifest: dict, checkpoint: tuple[dict, byte
     for path, entry in result["inventory"].items():
         target = f"artifacts/{path}"
         if path not in actual:
-            copied = directory.copy_file_to(f"{prefix}/artifacts/{path}", directory, target)
+            copied = _copy_owned(directory, f"{prefix}/artifacts/{path}", manifest, result, target)
             _require(copied == (entry["sha256"], entry["bytes"]), f"staged artifact changed: {path!r}")
         _persist_expected(directory, target, entry["sha256"], entry["bytes"])
-    _publish_exact(directory, "records.jsonl", record_data, limit=records.MAX_RECORD_BYTES)
+    _publish_owned(directory, manifest, result, "records.jsonl", record_data, limit=records.MAX_RECORD_BYTES)
     _check_data(directory, manifest, result, "")
     _unchanged(directory, manifest, journal_data)
     # A visible result is the last normative publication, including on retries.
-    _publish_exact(directory, "result.json", result_data)
+    _publish_owned(directory, manifest, result, "result.json", result_data)
     _check_data(directory, manifest, result, "")
     _unchanged(directory, manifest, journal_data)
     _require(directory.read("result.json") == result_data, "final result changed")
@@ -321,10 +439,13 @@ def seal(receipt: Path, artifacts: Path | None = None, *, attempt_id: str | None
          roles: dict | None = None, media_types: dict | None = None, score_path: str | None = None,
          aggregate: dict | None = None, metadata: dict | None = None) -> dict:
     with Directory(receipt) as directory:
-        _root(directory)
+        _root(directory, allow_pending=True)
         with WriterLock(directory):
-            _root(directory)
+            _root(directory, allow_pending=True)
             manifest = _manifest(directory)
+            pending = _pending(directory)
+            _reconcile_pending(directory, manifest, None if pending is not None and pending["receipt_id"] is None else (_journal(directory, manifest) or (None, None, None, None))[2])
+            _root(directory)
             options = _options(manifest, attempt_id, outcome, reason, events, roles, media_types, score_path, aggregate, metadata)
             previous = _journal(directory, manifest)
             if artifacts is None:
@@ -360,10 +481,13 @@ def seal(receipt: Path, artifacts: Path | None = None, *, attempt_id: str | None
 
 def recover_seal(receipt: Path) -> dict:
     with Directory(receipt) as directory:
-        _root(directory)
+        _root(directory, allow_pending=True)
         with WriterLock(directory):
-            _root(directory)
+            _root(directory, allow_pending=True)
             manifest = _manifest(directory)
+            pending = _pending(directory)
+            _reconcile_pending(directory, manifest, None if pending is not None and pending["receipt_id"] is None else (_journal(directory, manifest) or (None, None, None, None))[2])
+            _root(directory)
             checkpoint = _journal(directory, manifest)
             _require(checkpoint is not None, "no complete seal journal is available")
             return _finalize(directory, manifest, checkpoint)

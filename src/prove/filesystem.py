@@ -7,6 +7,7 @@ import os
 import secrets
 import stat
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable
 from .errors import ProveError
@@ -158,6 +159,7 @@ class Directory:
     def __init__(self, root: Path):
         self.root = Path(root)
         self._fd: int | None = None
+        self._tracked_temporary: str | None = None
 
     def __enter__(self) -> "Directory":
         if self._fd is not None:
@@ -434,8 +436,10 @@ class Directory:
                 raise _problem(error, f"cannot exclusively create directory {path!r}") from error
 
     def _temporary(self, parent: int) -> tuple[int, str]:
-        for _ in range(32):
-            name = f".prove-tmp-{secrets.token_hex(16)}"
+        names = ([self._tracked_temporary] if self._tracked_temporary is not None
+                 else [f".prove-tmp-{secrets.token_hex(16)}" for _ in range(32)])
+        for name in names:
+            assert name is not None
             try:
                 return os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent), name
             except FileExistsError:
@@ -465,6 +469,20 @@ class Directory:
         except OSError as error:
             return _problem(error, "cannot clean private temporary file")
         return None
+
+    @contextmanager
+    def tracked_temporary(self, temporary: str):
+        if (not isinstance(temporary, str) or len(temporary) != 43
+                                      or not temporary.startswith(".prove-tmp-") or "/" in temporary
+                                      or any(char not in "0123456789abcdef" for char in temporary[11:])):
+            raise ProveError("invalid tracked temporary name")
+        if self._tracked_temporary is not None:
+            raise ProveError("tracked temporary is already active", code=5)
+        self._tracked_temporary = temporary
+        try:
+            yield
+        finally:
+            self._tracked_temporary = None
 
     def _write_private(self, path: str, write: Callable[[int], tuple[str, int] | None], replace: bool) -> tuple[str, int] | None:
         parent, final, parents, parent_ids = self._parent(path, create=True)
@@ -509,6 +527,28 @@ class Directory:
         result = destination._write_private(destination_path, lambda fd: self._stream(path, lambda chunk: _write_all(fd, chunk)), False)
         assert isinstance(result, tuple)
         return result
+
+    def unlink_file(self, path: str, *, missing_ok: bool = False) -> None:
+        parent, name, parents, identities = self._parent(path)
+        with _Descriptors() as owned:
+            owned.add(parent, f"cannot close parent for {path!r}")
+            try:
+                info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            except FileNotFoundError:
+                self._verify_dirs(parents, identities, path)
+                if missing_ok:
+                    return
+                raise ProveError(f"missing file: {path!r}")
+            except OSError as error:
+                raise _problem(error, f"cannot inspect file {path!r}") from error
+            _regular(info, path)
+            try:
+                self._verify_dirs(parents, identities, path)
+                os.unlink(name, dir_fd=parent)
+                os.fsync(parent)
+                self._verify_dirs(parents, identities, path)
+            except OSError as error:
+                raise _problem(error, f"cannot remove file {path!r}") from error
 
 
 def _lock_parent(directory: Directory, *, create: bool) -> tuple[int, tuple[os.stat_result, ...]]:
