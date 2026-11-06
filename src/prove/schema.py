@@ -7,11 +7,11 @@ import binascii
 import hashlib
 from importlib.resources import files
 import secrets
-import unicodedata
 
 from jsonschema import Draft202012Validator
 
 from . import canonical
+from .paths import validate_path, validate_paths
 from .errors import ProveError
 
 
@@ -115,40 +115,12 @@ def validate_manifest(value: dict) -> dict:
 
 def validate_artifact_path(path: str) -> str:
     """Validate a portable NFC path, preserving the producer's exact spelling."""
-    _require(isinstance(path, str), "artifact path must be a string")
-    canonical.dumps(path)
-    _require(bool(path) and not path.startswith("/") and "\\" not in path,
-             f"invalid artifact path: {path!r}")
-    _require(unicodedata.normalize("NFC", path) == path,
-             f"artifact path is not NFC: {path!r}")
-    _require(not any(unicodedata.category(char) == "Cc" for char in path),
-             f"control character in artifact path: {path!r}")
-    _require(len(path.encode("utf-8")) <= 1024, f"artifact path exceeds 1024 bytes: {path!r}")
-    for component in path.split("/"):
-        _require(component not in ("", ".", "..") and not component.endswith((".", " "))
-                 and ":" not in component, f"invalid artifact component in {path!r}")
-        _require(len(component.encode("utf-8")) <= 255,
-                 f"artifact component exceeds 255 bytes in {path!r}")
-    return path
+    return validate_path(path)
 
 
 def validate_inventory_paths(paths) -> None:
     """Reject collisions in full paths and directory prefixes without renaming."""
-    _require(isinstance(paths, (list, tuple, dict)), "inventory paths must be a collection")
-    prefixes: dict[str, tuple[str, bool]] = {}
-    for path in paths:
-        validate_artifact_path(path)
-        parts = path.split("/")
-        for index in range(1, len(parts) + 1):
-            prefix = "/".join(parts[:index])
-            folded = unicodedata.normalize("NFC", prefix.casefold())
-            is_file = index == len(parts)
-            prior = prefixes.get(folded)
-            if prior is not None:
-                _require(prior[0] == prefix and not prior[1] and not is_file,
-                         f"artifact path collision: {prior[0]!r} and {prefix!r}")
-            else:
-                prefixes[folded] = (prefix, is_file)
+    validate_paths(paths)
 
 
 def validate_inventory(value: dict) -> dict:

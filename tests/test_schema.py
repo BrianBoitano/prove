@@ -171,6 +171,13 @@ def test_paths_preserve_supported_names(path):
     assert api().validate_artifact_path(path) == path
 
 
+def test_wire_path_bound_remains_1024_after_storage_path_refactor():
+    path = "/".join(["a" * 255] * 3 + ["b" * 254, "x"])
+    assert len(path.encode()) == 1024
+    assert api().validate_artifact_path(path) == path
+    invalid(api().validate_artifact_path, path + "x")
+
+
 @pytest.mark.parametrize("path", ["", ".", "..", "a/../b", "a//b", "/a", "a/", "a\\b",
                                       "a\x00b", "a\x7fb", "a\x85b", "a./b", "a /b", "C:foo", "a:b/c",
                                       "Re\u0301sume\u0301.txt", "a" * 256, "😀" * 64,

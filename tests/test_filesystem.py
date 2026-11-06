@@ -20,6 +20,164 @@ def api():
     return filesystem
 
 
+def test_mkdir_exclusive_rejects_existing_and_persist_repairs_full_chain(tmp_path, monkeypatch):
+    with api().Directory(tmp_path) as directory:
+        directory.mkdir_exclusive("parent/new")
+        failure(lambda: directory.mkdir_exclusive("parent/new"))
+        directory.atomic_write("parent/new/file", b"durable")
+        real_sync = os.fsync
+        seen = []
+        def sync(fd):
+            seen.append(os.fstat(fd))
+            return real_sync(fd)
+        monkeypatch.setattr(os, "fsync", sync)
+        assert directory.persist_file("parent/new/file") == (hashlib.sha256(b"durable").hexdigest(), 7)
+        assert len(seen) == 4  # file, new, parent, opened root
+
+
+def test_internal_storage_prefix_does_not_consume_wire_path_allowance(tmp_path):
+    path = "/".join(["a" * 255] * 3 + ["b" * 254, "x"])
+    full = ".prove/staging/" + "ab" * 16 + "/artifacts/" + path
+    with api().Directory(tmp_path) as directory:
+        directory.atomic_write(full, b"boundary")
+        assert directory.digest(full) == (hashlib.sha256(b"boundary").hexdigest(), 8)
+        assert directory.list_files(".prove/staging/" + "ab" * 16 + "/artifacts") == [full]
+
+
+def test_enumeration_rejects_colliding_empty_directory_prefixes(tmp_path):
+    (tmp_path / "A").mkdir()
+    (tmp_path / "a").mkdir()
+    with api().Directory(tmp_path) as directory:
+        failure(directory.list_files)
+
+
+def test_repeated_descriptor_enumeration_sees_new_entries(tmp_path):
+    (tmp_path / "first").write_bytes(b"first")
+    with api().Directory(tmp_path) as directory:
+        assert directory.list_files() == ["first"]
+        (tmp_path / "new").write_bytes(b"new")
+        assert directory.list_files() == ["first", "new"]
+
+
+@pytest.mark.parametrize("change", ["file", "parent"])
+def test_persist_file_rejects_changes_during_fsync(tmp_path, monkeypatch, change):
+    directory_path = tmp_path / "parent"
+    directory_path.mkdir()
+    file_path = directory_path / "file"
+    file_path.write_bytes(b"old")
+    real_sync = os.fsync
+    changed = False
+    def mutate(fd):
+        nonlocal changed
+        real_sync(fd)
+        if not changed and os.fstat(fd).st_ino == file_path.stat().st_ino:
+            changed = True
+            if change == "file":
+                file_path.write_bytes(b"new")
+            else:
+                directory_path.rename(tmp_path / "moved")
+                directory_path.mkdir()
+                file_path.write_bytes(b"old")
+    monkeypatch.setattr(os, "fsync", mutate)
+    with api().Directory(tmp_path) as directory:
+        failure(lambda: directory.persist_file("parent/file"), code=5)
+    assert changed
+
+
+@pytest.mark.parametrize("operation", ["persist", "mkdir"])
+def test_new_primitives_drain_descriptors_after_sync_failure(tmp_path, monkeypatch, operation):
+    (tmp_path / "file").write_bytes(b"data")
+    before = set(os.listdir("/proc/self/fd"))
+    real_sync = os.fsync
+    def broken(fd):
+        raise OSError(errno.EIO, "injected fsync failure")
+    monkeypatch.setattr(os, "fsync", broken)
+    with api().Directory(tmp_path) as directory:
+        call = (lambda: directory.persist_file("file")) if operation == "persist" else (lambda: directory.mkdir_exclusive("new"))
+        failure(call, code=5)
+    monkeypatch.setattr(os, "fsync", real_sync)
+    assert set(os.listdir("/proc/self/fd")) == before
+
+
+def test_persist_never_retries_ambiguously_failed_close(tmp_path, monkeypatch):
+    (tmp_path / "file").write_bytes(b"data")
+    real_close = os.close
+    calls = []
+    target = None
+    def close(fd):
+        calls.append(fd)
+        real_close(fd)
+        if fd == target:
+            raise OSError(errno.EIO, "close consumed the descriptor before failing")
+    with api().Directory(tmp_path) as directory:
+        original_open = os.open
+        def observe(path, flags, *args, **kwargs):
+            nonlocal target
+            fd = original_open(path, flags, *args, **kwargs)
+            if path == "file" and target is None:
+                target = fd
+            return fd
+        monkeypatch.setattr(os, "open", observe)
+        monkeypatch.setattr(os, "close", close)
+        failure(lambda: directory.persist_file("file"), code=5)
+        assert calls.count(target) == 1
+        monkeypatch.setattr(os, "close", real_close)
+
+
+def test_enumeration_rechecks_prefix_identity_after_directory_substitution(tmp_path, monkeypatch):
+    subtree = tmp_path / "artifacts"
+    subtree.mkdir()
+    (subtree / "file").write_bytes(b"old")
+    inode = subtree.stat().st_ino
+    original = os.listdir
+    changed = False
+    def substitute(fd):
+        nonlocal changed
+        names = original(fd)
+        if isinstance(fd, int) and os.fstat(fd).st_ino == inode and not changed:
+            changed = True
+            subtree.rename(tmp_path / "detached")
+            subtree.mkdir()
+            (subtree / "new").write_bytes(b"new")
+        return names
+    monkeypatch.setattr(os, "listdir", substitute)
+    with api().Directory(tmp_path) as directory:
+        failure(lambda: directory.list_files("artifacts"), code=5)
+    assert changed
+
+
+def test_descendant_identity_scan_finds_nested_directories_without_following_links(tmp_path):
+    root, outside = tmp_path / "root", tmp_path / "outside"
+    (root / "nested" / "target").mkdir(parents=True)
+    outside.mkdir()
+    (root / "link").symlink_to(outside, target_is_directory=True)
+    with api().Directory(root) as directory:
+        assert api()._contains_directory(directory.fd, (root / "nested" / "target").stat())
+        assert not api()._contains_directory(directory.fd, outside.stat())
+
+
+def test_descendant_identity_scan_bounds_repeated_directory_inodes(tmp_path, monkeypatch):
+    (tmp_path / "back").mkdir()
+    outside = tmp_path.parent / "unrelated"
+    outside.mkdir()
+    with api().Directory(tmp_path) as directory:
+        original_stat, original_open = os.stat, os.open
+        calls = []
+        def bind_stat(path, *args, **kwargs):
+            if path == "back" and kwargs.get("dir_fd") is not None:
+                return os.fstat(directory.fd)
+            return original_stat(path, *args, **kwargs)
+        def bind_open(path, flags, *args, **kwargs):
+            if path == "back" and kwargs.get("dir_fd") is not None:
+                calls.append(path)
+                return os.dup(directory.fd)
+            return original_open(path, flags, *args, **kwargs)
+        monkeypatch.setattr(os, "stat", bind_stat)
+        monkeypatch.setattr(os, "open", bind_open)
+        assert not api()._contains_directory(directory.fd, outside.stat())
+        assert calls == ["back"]
+
+
 def failure(call, code=2):
     with pytest.raises(ProveError) as caught:
         call()

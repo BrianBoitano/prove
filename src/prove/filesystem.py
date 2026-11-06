@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Callable
 from .errors import ProveError
-from .schema import validate_artifact_path, validate_inventory_paths
+from .paths import validate_path, validate_paths
 
 try:
     import fcntl
@@ -48,7 +48,7 @@ def _regular(info: os.stat_result, path: str) -> None:
 
 
 def _parts(path: str) -> list[str]:
-    validate_artifact_path(path)
+    validate_path(path, limit=2048)
     return path.split("/")
 
 
@@ -102,6 +102,55 @@ class _Descriptors:
             failure = failure or error
         if exc_type is None and failure is not None:
             raise failure
+
+
+def _directory_names(fd: int) -> list[str]:
+    """Use a fresh open description so overlay readdir caches cannot hide changes."""
+    with _Descriptors() as owned:
+        fresh = owned.add(os.open(".", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd),
+                          "cannot close directory enumeration descriptor")
+        if not _same(os.fstat(fd), os.fstat(fresh)):
+            raise ProveError("directory changed before enumeration", code=5)
+        return os.listdir(fresh)
+
+
+def _contains_directory(root_fd: int, wanted: os.stat_result) -> bool:
+    """Find a directory inode through descendants, including bind-mount aliases."""
+    try:
+        with _Descriptors() as owned:
+            start = owned.add(os.dup(root_fd), "cannot close overlap traversal root")
+            root_info = os.fstat(start)
+            if _same(root_info, wanted):
+                return True
+            visited = {(root_info.st_dev, root_info.st_ino)}
+            stack = [(start, iter(_directory_names(start)))]
+            while stack:
+                current, names = stack[-1]
+                try:
+                    name = next(names)
+                except StopIteration:
+                    stack.pop()
+                    owned.close(current)
+                    continue
+                before = os.stat(name, dir_fd=current, follow_symlinks=False)
+                if not stat.S_ISDIR(before.st_mode):
+                    continue
+                child = owned.add(os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current),
+                                  "cannot close overlap traversal directory")
+                info = os.fstat(child)
+                if not _same(before, info):
+                    raise ProveError("directory changed during overlap traversal", code=5)
+                if _same(info, wanted):
+                    return True
+                identity = (info.st_dev, info.st_ino)
+                if identity in visited:
+                    owned.close(child)
+                    continue
+                visited.add(identity)
+                stack.append((child, iter(_directory_names(child))))
+            return False
+    except OSError as error:
+        raise _problem(error, "cannot inspect source/receipt directory identities") from error
 
 
 class Directory:
@@ -205,7 +254,8 @@ class Directory:
                 raise _problem(error, f"cannot open file {path!r}") from error
             return owned.take(parent), fd, name, parents, identities
 
-    def _stream(self, path: str, consume: Callable[[bytes], None], limit: int | None = None) -> tuple[str, int]:
+    def _stream(self, path: str, consume: Callable[[bytes], None], limit: int | None = None,
+                *, persist: bool = False) -> tuple[str, int]:
         if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 0):
             raise ProveError("read limit must be a nonnegative integer")
         parent, fd, name, parents, parent_ids = self._open_file(path)
@@ -230,6 +280,10 @@ class Directory:
                 after = os.fstat(fd)
                 if not _same_file_state(before, after) or total != before.st_size:
                     raise ProveError(f"file changed while reading {path!r}", code=5)
+                if persist:
+                    os.fsync(fd)
+                    if not _same_file_state(after, os.fstat(fd)):
+                        raise ProveError(f"file changed while persisting {path!r}", code=5)
                 self._verify_dirs(parents, parent_ids, path)
                 try:
                     reopened = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=parent)
@@ -239,6 +293,13 @@ class Directory:
                     recheck.add(reopened, f"cannot close reopened file {path!r}")
                     if not _same_file_state(after, os.fstat(reopened)):
                         raise ProveError(f"file changed while reading {path!r}", code=5)
+                if persist:
+                    self._persist_dirs(parents, parent_ids, path)
+                    if not _same_file_state(after, os.fstat(fd)):
+                        raise ProveError(f"file changed while persisting {path!r}", code=5)
+                    self._verify_dirs(parents, parent_ids, path)
+                    if not _same_file_state(after, os.stat(name, dir_fd=parent, follow_symlinks=False)):
+                        raise ProveError(f"file changed while persisting {path!r}", code=5)
                 return digest.hexdigest(), total
             except OSError as error:
                 raise _problem(error, f"cannot read file {path!r}") from error
@@ -251,47 +312,121 @@ class Directory:
     def digest(self, path: str) -> tuple[str, int]:
         return self._stream(path, lambda _: None)
 
+    def _persist_dirs(self, parts: list[str], expected: tuple[os.stat_result, ...], path: str) -> None:
+        """Sync child-to-root through a verified owned chain, including reused dirs."""
+        try:
+            with _Descriptors() as owned:
+                current = owned.add(os.dup(self.fd), f"cannot close persistence root for {path!r}")
+                chain = [current]
+                if len(parts) != len(expected):
+                    raise ProveError("directory identity bookkeeping failed", code=5)
+                for part, wanted in zip(parts, expected):
+                    current = owned.add(os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                                dir_fd=current), f"cannot close persistence directory for {path!r}")
+                    if not _same(wanted, os.fstat(current)):
+                        raise ProveError(f"directory changed while persisting {path!r}", code=5)
+                    chain.append(current)
+                for fd in reversed(chain):
+                    os.fsync(fd)
+        except OSError as error:
+            raise _problem(error, f"cannot persist directory chain for {path!r}") from error
+
+    def persist_file(self, path: str) -> tuple[str, int]:
+        return self._stream(path, lambda _: None, persist=True)
+
     def list_files(self, prefix: str = "") -> list[str]:
+        entries = self._list_entries(prefix)
+        return sorted((path for path, is_file in entries.items() if is_file), key=lambda value: value.encode("utf-8"))
+
+    def _list_entries(self, prefix: str = "", *, missing_ok: bool = False) -> dict[str, bool]:
+        """Inspect the namespace including empty directories for collision preflight."""
         if not isinstance(prefix, str):
             raise ProveError("list prefix must be a string")
         parts = [] if not prefix else _parts(prefix)
-        start, _ = self._walk_dirs(parts)
-        results: list[str] = []
+        results: dict[str, bool] = {}
         with _Descriptors() as owned:
-            owned.add(start, "cannot close enumeration directory")
-
-            def visit(fd: int, relative: str) -> None:
+            if parts and missing_ok:
+                parent, final, parents, ancestor_ids = self._parent(prefix)
+                owned.add(parent, "cannot close optional enumeration parent")
                 try:
-                    names = os.listdir(fd)
+                    start = os.open(final, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                except FileNotFoundError:
+                    # Only absence at this exact final open is optional. A failed
+                    # ancestor walk or any later descendant read must propagate.
+                    self._verify_dirs(parents, ancestor_ids, prefix)
+                    return {}
                 except OSError as error:
-                    raise _problem(error, f"cannot enumerate {relative or '.'!r}") from error
-                for name in names:
-                    candidate = f"{relative}/{name}" if relative else name
-                    validate_artifact_path(candidate)
+                    raise _problem(error, f"cannot open enumeration prefix {prefix!r}") from error
+                owned.add(start, "cannot close enumeration directory")
+                try:
+                    identities = ancestor_ids + (os.fstat(start),)
+                except OSError as error:
+                    raise _problem(error, f"cannot inspect enumeration prefix {prefix!r}") from error
+                owned.close(parent)
+            else:
+                start, identities = self._walk_dirs(parts)
+                owned.add(start, "cannot close enumeration directory")
+            try:
+                root_info = os.fstat(start)
+                active = {(root_info.st_dev, root_info.st_ino)}
+                stack = [(start, prefix, iter(_directory_names(start)), (root_info.st_dev, root_info.st_ino))]
+                while stack:
+                    fd, relative, names, identity = stack[-1]
                     try:
-                        child = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=fd)
-                    except OSError as error:
-                        raise _problem(error, f"cannot enumerate {candidate!r}") from error
-                    with _Descriptors() as children:
-                        children.add(child, f"cannot close enumerated path {candidate!r}")
-                        try:
-                            info = os.fstat(child)
-                        except OSError as error:
-                            raise _problem(error, f"cannot inspect {candidate!r}") from error
-                        if stat.S_ISDIR(info.st_mode):
-                            visit(child, candidate)
-                        elif stat.S_ISREG(info.st_mode):
-                            results.append(candidate)
-                        else:
-                            raise ProveError(f"path is not a regular file: {candidate!r}")
-            visit(start, prefix)
-            validate_inventory_paths(results)
-            return sorted(results, key=lambda value: value.encode("utf-8"))
+                        name = next(names)
+                    except StopIteration:
+                        stack.pop()
+                        active.remove(identity)
+                        owned.close(fd)
+                        continue
+                    candidate = f"{relative}/{name}" if relative else name
+                    validate_path(candidate, limit=2048)
+                    child = owned.add(os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=fd),
+                                      f"cannot close enumerated path {candidate!r}")
+                    info = os.fstat(child)
+                    if stat.S_ISDIR(info.st_mode):
+                        child_identity = (info.st_dev, info.st_ino)
+                        if child_identity in active:
+                            raise ProveError(f"cyclic directory namespace at {candidate!r}")
+                        results[candidate] = False
+                        active.add(child_identity)
+                        stack.append((child, candidate, iter(_directory_names(child)), child_identity))
+                    elif stat.S_ISREG(info.st_mode):
+                        results[candidate] = True
+                        owned.close(child)
+                    else:
+                        raise ProveError(f"path is not a regular file: {candidate!r}")
+            except OSError as error:
+                raise _problem(error, f"cannot enumerate {prefix or '.'!r}") from error
+            self._verify_dirs(parts, identities, prefix or ".")
+            validate_paths([path for path, is_file in results.items() if is_file], limit=2048,
+                           directories=[path for path, is_file in results.items() if not is_file])
+            return results
 
     def mkdirs(self, path: str) -> None:
         fd, _ = self._walk_dirs(_parts(path), create=True)
         with _Descriptors() as owned:
             owned.add(fd, f"cannot close created directory {path!r}")
+
+    def mkdir_exclusive(self, path: str) -> None:
+        parent, name, parents, parent_ids = self._parent(path, create=True)
+        with _Descriptors() as owned:
+            owned.add(parent, f"cannot close parent for {path!r}")
+            try:
+                self._verify_dirs(parents, parent_ids, path)
+                os.mkdir(name, 0o700, dir_fd=parent)
+                created = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                child = owned.add(os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent),
+                                  f"cannot close new directory {path!r}")
+                if not _same(created, os.fstat(child)):
+                    raise ProveError(f"new directory changed: {path!r}", code=5)
+                os.fsync(child)
+                self._persist_dirs(parents, parent_ids, path)
+                self._verify_dirs(parents, parent_ids, path)
+                if not _same(created, os.stat(name, dir_fd=parent, follow_symlinks=False)):
+                    raise ProveError(f"new directory changed: {path!r}", code=5)
+            except OSError as error:
+                raise _problem(error, f"cannot exclusively create directory {path!r}") from error
 
     def _temporary(self, parent: int) -> tuple[int, str]:
         for _ in range(32):

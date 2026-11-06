@@ -34,7 +34,7 @@ This covers the declared opened-root boundary and detectable replacements before
 
 ## Receipt persistence and later consumers
 
-Not implemented or accepted yet. Later review entries must record actual source/commit boundaries, reproduced findings, regression tests, main-session verification and remaining limits. Reviewer approval alone never establishes whole-candidate readiness.
+Receipt persistence acceptance is recorded below. Full verification, timestamp transport/evidence, installed CLI and handoff are still incomplete. Later review entries must record actual source/commit boundaries, reproduced findings, regression tests, main-session verification and remaining limits. Reviewer approval alone never establishes whole-candidate readiness.
 
 ## Pure normalized-record engine
 
@@ -45,3 +45,15 @@ Main rejected the initial minimal test set. Expanded tests cover honestly rehash
 Independent acceptance cases bind real canonical hashes and trees while contradicting a budget outcome: known token use above a ceiling must still reject completed when another call reports null usage. Explicit budget_exceeded retains a null full total and its known lower bound; below/equal-ceiling subtotals with unknown constrained usage remain unknown. Known call-count violations remain detectable with unknown token totals. Exact1MiB event and64MiB JSONL positive boundaries pass, with over-limit input rejected. Distinguishable code2/code4 cases exercise one-shot validation precedence.
 
 This is pure supplied-record consistency. It does not authenticate execution/model identity, establish real-world call completeness, read artifacts, recompute scores, persist receipts, contact calendars or make an installed CLI available.
+
+## Durable generic receipt snapshots
+
+Source: store.py, paths.py and focused filesystem/schema additions. Evidence: tests/test_store.py, original filesystem/schema regressions and independently owned tests/test_store_adversarial.py. Main final cumulative run:475 passed,1 prerequisite skip in34.79s; the skipped bind-alias case separately passed in a disposable capped worker with the real second bind mount. Scoped independent re-review returned APPROVE. No privileged worker, host-mount or live-service changes were needed.
+
+The reviewed persistence design was corrected before code: existing final-result conflicts must be checked before adding any candidate artifact; a journal binds one pending candidate; identical bytes must have their file/ancestor durability repaired after failed fsync; trusted storage prefixes must preserve the full1024-byte wire path allowance; and complete recorded-only traces can have no artifacts. Implementation tests cover these requirements plus immutable repeat/conflict behavior and selected attempts.
+
+Main actual-source review and implementation fault injection exposed foreign recognized root adoption on first registration, skipped manifest-file persistence, a synthetic8MiB options wrapper rejecting valid larger traces, stale shared-description directory enumeration, empty-directory namespace conflicts and selected-prefix identity loss. Test-first corrections preserve original bytes, safe descriptors and the separate wire/storage limits.
+
+Independent review then reproduced false success when a missing descendant caused an entire artifact listing to be treated as empty, a bind-mounted-descendant overlap gap and a raw recursion error on a deep internal tree. Separate main regressions failed on all three, including the actual bind mount. Absence is now optional only at the exact requested initial open; later failures propagate. Iterative enumeration preserves ownership/namespace checks, and bidirectional descendant inode scans supplement upward ancestry with cycle bounds.
+
+An actual child process exits immediately after journal publication. Recovery is blocked by the stale writer lock until explicit observed-digest lock recovery, then completes the bound snapshot with the live source removed. Stages/journals remain local and retained; no automatic cleanup or claim of protection from unrestricted same-user tampering after final checks is introduced. This acceptance establishes local snapshot persistence, not Bitcoin anchoring, score correctness or a released CLI.
