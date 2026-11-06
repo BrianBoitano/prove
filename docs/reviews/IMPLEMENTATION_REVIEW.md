@@ -35,3 +35,13 @@ This covers the declared opened-root boundary and detectable replacements before
 ## Receipt persistence and later consumers
 
 Not implemented or accepted yet. Later review entries must record actual source/commit boundaries, reproduced findings, regression tests, main-session verification and remaining limits. Reviewer approval alone never establishes whole-candidate readiness.
+
+## Pure normalized-record engine
+
+Source: src/prove/records.py and the prepared event/inventory additions in schema.py. Evidence: tests/test_records.py, schema regressions and independently owned tests/test_records_adversarial.py. Main-session final cumulative run:391 passed in2.46s in the capped worker. Scoped independent review returned APPROVE after direct semantic probes.
+
+Main rejected the initial minimal test set. Expanded tests cover honestly rehashed contradictory records, lifecycle/retry/reference errors, terminal and coverage rules, exact resources, overflow, usage unknowns and canonical JSONL limits. Main source review also exposed repeated manifest hashing during artifact generation; it is now computed once. Invalid attempt argument types produce structured errors, the one-shot validator keeps its prior error precedence, and stored-record verification reuses computed metadata rather than repeating the tree calculation.
+
+Independent acceptance cases bind real canonical hashes and trees while contradicting a budget outcome: known token use above a ceiling must still reject completed when another call reports null usage. Explicit budget_exceeded retains a null full total and its known lower bound; below/equal-ceiling subtotals with unknown constrained usage remain unknown. Known call-count violations remain detectable with unknown token totals. Exact1MiB event and64MiB JSONL positive boundaries pass, with over-limit input rejected. Distinguishable code2/code4 cases exercise one-shot validation precedence.
+
+This is pure supplied-record consistency. It does not authenticate execution/model identity, establish real-world call completeness, read artifacts, recompute scores, persist receipts, contact calendars or make an installed CLI available.

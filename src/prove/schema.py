@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 from importlib.resources import files
 import secrets
 import unicodedata
@@ -19,7 +20,7 @@ _SCHEMA = canonical.loads(
 )
 _VALIDATORS = {
     name: Draft202012Validator({"$defs": _SCHEMA["$defs"], "$ref": f"#/$defs/{name}"})
-    for name in ("manifest", "result", "event", "inclusion", "chain")
+    for name in ("manifest", "result", "event", "inclusion", "chain", "inventoryEntry")
 }
 _PROFILES = ("artifacts-v1", "trace-v1")
 _SCORERS = ("recorded-only-v1", "fixture-exact-v1")
@@ -150,6 +151,19 @@ def validate_inventory_paths(paths) -> None:
                 prefixes[folded] = (prefix, is_file)
 
 
+def validate_inventory(value: dict) -> dict:
+    """Validate a complete inventory with the packaged entry contract."""
+    _require(isinstance(value, dict), "inventory must be an object")
+    canonical.dumps(value)
+    validate_inventory_paths(value)
+    for path, entry in value.items():
+        error = next(_VALIDATORS["inventoryEntry"].iter_errors(entry), None)
+        if error is not None:
+            location = ".".join(str(part) for part in error.absolute_path) or path
+            raise ProveError(f"invalid inventory entry at {location}: {error.message}")
+    return value
+
+
 def validate_result(value: dict, manifest: dict) -> dict:
     """Bind the result to a manifest without claiming to have read artifacts."""
     _shape(value, "result")
@@ -158,7 +172,7 @@ def validate_result(value: dict, manifest: dict) -> dict:
     attempt = _attempt(manifest, value["attempt_id"])
     _require(value["profile"] == manifest["profile"], "result profile differs from manifest")
     _outcome(value)
-    validate_inventory_paths(value["inventory"])
+    validate_inventory(value["inventory"])
     if value["profile"] == "artifacts-v1":
         _require(value["records"]["count"] == len(value["inventory"]) + 1,
                  "artifact record count must include each artifact and one terminal")
@@ -193,28 +207,45 @@ def validate_result(value: dict, manifest: dict) -> dict:
     return value
 
 
+class EventValidator:
+    """Prepared direct-event validator that snapshots one validated manifest."""
+
+    def __init__(self, manifest: dict, attempt_id: str) -> None:
+        validate_manifest(manifest)
+        frozen = canonical.loads(canonical.dumps(manifest))
+        attempt = _attempt(frozen, attempt_id)
+        self._profile = frozen["profile"]
+        self._attempt_id = attempt_id
+        self._registration_id = hashlib.sha256(canonical.dumps(frozen)).hexdigest()
+        self._sample_ids = frozenset(attempt["sample_ids"])
+
+    def validate(self, value: dict) -> dict:
+        _shape(value, "event")
+        _require(value["registration_id"] == self._registration_id, "event registration ID mismatch")
+        _require(value["attempt_id"] == self._attempt_id, "event attempt ID mismatch")
+        kind = value["kind"]
+        allowed = ("artifact", "attempt_end") if self._profile == "artifacts-v1" else _KINDS[1:]
+        _require(kind in allowed, "event kind is not allowed by the manifest profile")
+        if kind == "artifact":
+            validate_artifact_path(value["path"])
+        if kind in ("sample_start", "call", "sample_end"):
+            _require(value["sample_id"] in self._sample_ids, "event sample ID is undeclared")
+        if kind == "call":
+            _require(value["retry_of"] != value["call_id"], "call cannot retry itself")
+            for field in ("input", "output"):
+                if value[field] is not None:
+                    validate_artifact_path(value[field])
+        if kind == "attempt_end":
+            _outcome(value)
+        return value
+
+
 def validate_event(value: dict, manifest: dict, attempt_id: str) -> dict:
     """Validate one event's direct bindings, leaving trace history to its consumer."""
+    # Preserve one-shot historical precedence: malformed/unsupported event shape
+    # is reported before any unrelated manifest error.
     _shape(value, "event")
-    validate_manifest(manifest)
-    attempt = _attempt(manifest, attempt_id)
-    _require(value["registration_id"] == canonical.digest(manifest), "event registration ID mismatch")
-    _require(value["attempt_id"] == attempt_id, "event attempt ID mismatch")
-    kind = value["kind"]
-    allowed = ("artifact", "attempt_end") if manifest["profile"] == "artifacts-v1" else _KINDS[1:]
-    _require(kind in allowed, "event kind is not allowed by the manifest profile")
-    if kind == "artifact":
-        validate_artifact_path(value["path"])
-    if kind in ("sample_start", "call", "sample_end"):
-        _require(value["sample_id"] in attempt["sample_ids"], "event sample ID is undeclared")
-    if kind == "call":
-        _require(value["retry_of"] != value["call_id"], "call cannot retry itself")
-        for field in ("input", "output"):
-            if value[field] is not None:
-                validate_artifact_path(value[field])
-    if kind == "attempt_end":
-        _outcome(value)
-    return value
+    return EventValidator(manifest, attempt_id).validate(value)
 
 
 def validate_inclusion(value: dict) -> dict:

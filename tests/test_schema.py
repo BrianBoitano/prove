@@ -635,3 +635,22 @@ def test_declared_weight_digest_evidence_requires_a_digest_without_authenticatin
     invalid(api().validate_manifest, core)
     core["model"]["sha256"] = HEX
     assert api().validate_manifest(core) is core
+
+
+def test_prepared_event_validator_snapshots_manifest_and_validates_inventory_once():
+    core = manifest(True)
+    inventory = {"Report Résumé.txt": {"sha256": HEX, "bytes": 7,
+                                        "media_type": "text/plain", "role": "output"}}
+    assert api().validate_inventory(inventory) is inventory
+    prepared = api().EventValidator(core, "run-1")
+    core["attempts"][0]["sample_ids"] = ["other-sample"]
+    value = event(manifest(True), "sample_start")
+    assert prepared.validate(value) is value
+
+
+def test_one_shot_event_validation_keeps_event_shape_error_precedence():
+    core = manifest(True)
+    core["profile"] = "future"
+    value = event(manifest(True), "call")
+    value["kind"] = "future"
+    invalid(api().validate_event, value, core, "run-1", code=4)

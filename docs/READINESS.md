@@ -12,8 +12,8 @@ The user objective is a rigorously critiqued standalone Prove CLI ready for exte
 | Versioned contracts | Closed interoperable static schemas, typed/direct binding checks and malformed/unsupported behavior | Task2 accepted at0771498:204 contract tests plus33 primitives; independent re-review approved |
 | Safe storage | No-follow ancestors/files, FIFO rejection, read-race tests, streamed hashing/copies and directory fsync | Task3 accepted:106 filesystem checks/343 cumulative, independent namespace/lock/close-failure probes approved; receipt persistence remains separate |
 | Atomic freeze/seal/recovery | Durable immutable cores, no-clobber finalization, one writer, live/stale-lock handling and interruption tests | Not implemented |
-| Generic artifact records | Case-preserving ordinary names, deterministic snapshots/tree, multiple attempts as distinct receipt dirs | Contract written; not implemented |
-| Optional trace consistency | Open-sample lifecycle, indices/retry binding, exact terminal outcome, coverage and known-subtotal budget bounds | Contract written; not implemented |
+| Generic artifact records | Case-preserving ordinary names, deterministic snapshots/tree, multiple attempts as distinct receipt dirs | Pure deterministic record engine accepted; snapshot persistence still pending |
+| Optional trace consistency | Open-sample lifecycle, indices/retry binding, exact terminal outcome, coverage and known-subtotal budget bounds | Task4a accepted:391 cumulative tests and scoped independent probes; no claim of honest/complete actual execution |
 | Honest scoring | Independent deterministic fixture recomputation, valid-hash/wrong-score rejection, other scorers labeled recorded-only | Contract written; not implemented |
 | Full and inclusion verification | Distinct scope/policy/report fields, direct partial-proof consistency, no complete-history claim from a leaf | Contract written; not implemented |
 | Offline behavior | Read-only verifier with no producer code, network lookup or implicit cache; process-level blocked-network test | Not implemented |
