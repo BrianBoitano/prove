@@ -392,6 +392,6 @@ def test_actual_loopback_auth_is_in_header_never_subprocess_argv(evidence, confi
     finally:
         server.shutdown(); server.server_close(); thread.join()
     assert len(seen) == 5 and len(argv) == 5
-    assert all(args == [sys.executable, "-m", "prove._http"] for args in argv)
+    assert all(args == [sys.executable, "-I", "-m", "prove._http"] for args in argv)
     assert all(auth == "Basic " + base64.b64encode(SECRET.encode()).decode() for _, auth in seen)
     assert SECRET not in json.dumps(result)

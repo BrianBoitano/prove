@@ -107,3 +107,9 @@ The full consumer streams every artifact, checks all supplied records/resources/
 Inclusion verifies only the selected membership plus direct bindings and finite necessary position/count bounds. Correct-hash false scores remain detectable only in full scope. Coverage, actual resources, budget compliance, scoring and unseen history remain unchecked in inclusion output. The reference verifier, installed process-level offline tests and real independently acquired chain acceptance remain separate gates.
 
 A separate main-owned regression reproduced HTTP child imports from unrelated CWD/PYTHONPATH shadow packages. That launcher issue is tracked as Task6d and remains outside this verifier approval; whole-candidate readiness is not established.
+
+## Installed HTTP child isolation
+
+Task6d changes the fixed child argv to `[sys.executable, '-I', '-m', 'prove._http']`, retaining bounded pipes, timeouts, TLS and cleanup. Main's benign-marker regressions actually failed for CWD, PYTHONPATH and sitecustomize shadow imports before this change. The corrected tests require both marker absence and a successful real loopback response. Exact-argv authentication tests retain no request/authentication data in argv.
+
+Main read the four-line production/assertion diff, then reran the full suite in the capped worker with an editable-installed package:869 passed,1 explicit bind prerequisite skip and3 existing upstream warnings in90.44s. Independent scoped review returned APPROVE. The worker's intermediate partial-output counts were not used as the acceptance verdict. No unsafe import fallback was introduced; the selected interpreter must have Prove installed, consistent with the public contributor setup. Clean wheel/sdist installation and CLI acceptance still remain outstanding.

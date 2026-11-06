@@ -107,7 +107,7 @@ def test_absolute_deadline_and_no_request_child_after_return(server, path, reque
     assert server.seen[path].is_set()
     assert time.monotonic() - start < 1.5
     assert request_children and all(child.returncode is not None for child in request_children)
-    assert all(child.args == [sys.executable, "-m", "prove._http"] for child in request_children)
+    assert all(child.args == [sys.executable, "-I", "-m", "prove._http"] for child in request_children)
 
 
 def test_response_limit_and_redirect_not_followed(server):
@@ -190,7 +190,7 @@ def test_bounded_request_ipc_transfers_body_without_credentials_in_argv(server, 
     response = client.request("POST", server, body=data, headers={"Authorization": "synthetic-secret"},
                               response_limit=len(data), timeout_seconds=3)
     assert response.status == 200 and response.body == data
-    assert request_children[0].args == [sys.executable, "-m", "prove._http"]
+    assert request_children[0].args == [sys.executable, "-I", "-m", "prove._http"]
     calls = len(request_children)
     with pytest.raises(ProveError) as error:
         client.request("POST", server, body=b"a"*(1024*1024+1), headers={}, response_limit=1)

@@ -21,7 +21,7 @@ The user objective is a rigorously critiqued standalone Prove CLI ready for exte
 | Independent Bitcoin evidence | Safe configurable RPC export from a validated source, active-chain snapshot, header/hash/root/confirmation checks, cached-view limits | Task6c exporter accepted: main794 cumulative passes/1 prerequisite skip, independent scoped review. Actual validated-node acquisition/export unresolved; synthetic/explorer data will not substitute |
 | Generic external integration | Another program's outputs sealed using the installed CLI alone, with a data-only interface and preserved original files | Not tested |
 | Packaging and compatibility | Linux/Python3.11-3.13 checks, clean build/install, dependencies/licenses and no private infrastructure artifacts | Worker3.12 bootstrapped; matrix pending |
-| Adversarial evaluation | Meaningful negative corpus, failure injection, independent whole-candidate review and documented fixes | Scoped source critiques/fixes through Task5a accepted. Main reproduced an HTTP child CWD/PYTHONPATH import defect; Task6d fix pending. Whole candidate absent |
+| Adversarial evaluation | Meaningful negative corpus, failure injection, independent whole-candidate review and documented fixes | Scoped critiques/fixes through Task5a/6d accepted: main869 passed/1 prerequisite skip. HTTP child shadow-import regressions fixed; independent corpus and whole-candidate review pending |
 | Reproducible test handoff | Exact version/commit/asset hashes, install commands, independent test prompt, expected behaviors and structured feedback schema/template | Not produced |
 | Testing pause | All necessary candidate gates justified; goal paused at user's requested external-test boundary with remaining limits visible | Not reached |
 

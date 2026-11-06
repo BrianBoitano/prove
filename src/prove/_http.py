@@ -148,7 +148,7 @@ def request(method, url, *, body, headers, response_limit, timeout_seconds=10,
             getattr(child, name).close()
 
     try:
-        child = subprocess.Popen([sys.executable, "-m", "prove._http"], stdin=subprocess.PIPE,
+        child = subprocess.Popen([sys.executable, "-I", "-m", "prove._http"], stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, close_fds=True)
         os.set_blocking(child.stdin.fileno(), False)
         os.set_blocking(child.stdout.fileno(), False)
