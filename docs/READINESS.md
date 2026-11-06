@@ -9,8 +9,8 @@ The user objective is a rigorously critiqued standalone Prove CLI ready for exte
 | General-purpose product | Generic primary commands/examples, no lab-specific core/import dependency, optional adapters only | Contract and generic example written; executable workflow incomplete |
 | Easy independent installation | Versioned wheel/sdist, clean pip and isolated CLI installs outside source checkout, packaged schemas/examples/version/help | Metadata written; distribution not built or accepted |
 | Canonical identities and trees | Independent vectors, invalid-encoding/depth/type tests, correct empty/odd trees and exact inclusion consumption | Task1 accepted:33 scoped tests plus independent review; later conformance corpus pending |
-| Versioned contracts | Closed interoperable static schemas, typed/direct binding checks and malformed/unsupported behavior | Task2 review fixes active; not accepted yet |
-| Safe storage | No-follow ancestors/files, FIFO rejection, read-race tests, streamed hashing/copies and directory fsync | Not implemented |
+| Versioned contracts | Closed interoperable static schemas, typed/direct binding checks and malformed/unsupported behavior | Task2 accepted at0771498:204 contract tests plus33 primitives; independent re-review approved |
+| Safe storage | No-follow ancestors/files, FIFO rejection, read-race tests, streamed hashing/copies and directory fsync | Task3 implementation active; not accepted |
 | Atomic freeze/seal/recovery | Durable immutable cores, no-clobber finalization, one writer, live/stale-lock handling and interruption tests | Not implemented |
 | Generic artifact records | Case-preserving ordinary names, deterministic snapshots/tree, multiple attempts as distinct receipt dirs | Contract written; not implemented |
 | Optional trace consistency | Open-sample lifecycle, indices/retry binding, exact terminal outcome, coverage and known-subtotal budget bounds | Contract written; not implemented |
@@ -30,3 +30,5 @@ The user objective is a rigorously critiqued standalone Prove CLI ready for exte
 The external session should install and use Prove like any independent evaluator. It must not rely on the lab's private services, edit Prove to make tests pass, or turn sealed research material into public artifacts without the research owner's existing authorization. Its feedback should separate installation/API friction, reproducible defects, mismatched claims and missing general capabilities.
 
 No stable public release should be inferred from a development branch or an internal green suite. At candidate freeze, replace this live audit with concrete artifact/test/review references and retain any unsatisfied requirement explicitly. Do not describe an unresolved prerequisite as passed.
+
+Scoped review evidence and concrete regression fixes are recorded in [the implementation review log](reviews/IMPLEMENTATION_REVIEW.md).
