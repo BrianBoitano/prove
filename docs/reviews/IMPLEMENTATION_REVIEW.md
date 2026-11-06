@@ -67,3 +67,13 @@ Main rejected the initial tests because an allegedly honest-rehash wrong-score c
 The first implementation also imposed an unsupported exactly-one pinned-dataset-copy rule and classified future payload formats as malformed. It now deterministically selects the UTF8-first matching pinned entry and preserves unsupported4 versus malformed2. Declared aggregates are returned as defensive copies, and JSON errors use the existing typed boundary.
 
 The fresh in-memory fixture uses two declared samples, one exact match and zero model-call events. Generic ingestion does not depend on it. Null scores are unavailable without reads; arbitrary recorded-only score bytes are not parsed or recomputed. Recomputed fixture agreement authenticates neither labels/observations nor execution/output provenance. Full verification/reference conformance, anchors, distribution and CLI remain outstanding.
+
+## Offline OTS parser and explicitly trusted cached headers
+
+Source: anchors.py and chain.py. Evidence: tests/test_anchors.py, tests/test_chain.py and attributed upstream historical header bytes under tests/fixtures/ots/. Main read both modules and final cumulative run returned579 passed,1 prerequisite skip and3 upstream OpReverse pending-deprecation warnings in32.55s. Independent scoped proof/cache review returned APPROVE after direct framing, substitution, extra-invalid-witness, unused-cache-header and mutation probes.
+
+The parser uses standard pinned upstream operations and attestation deserializers. A structural preflight enforces16MiB/depth64/work100000 and EOF before any operation evaluation, followed by the upstream timestamp evaluator with the same depth bound. Tests include exact boundaries and traps proving rejected framing never reaches operation calls. Unsupported major versions/file hash algorithms remain distinct from malformed/substituted proofs.
+
+The cache boundary validates closed metadata and every cached80-byte header hash, including unused entries, then exposes immutable block records and defensive summaries. It reports external_explicit trust and cached_only freshness. Witness policy selects an actual checked qualifying Bitcoin path; bad extras are counted, no valid cached witness plus a contradiction fails, and missing cache remains insufficient_chain. Synthetic caches and historical published bytes establish implementation behavior, not independently acquired live node evidence.
+
+No real calendar submission, fresh completed anchor, RPC export or current-chain observation was performed by this phase. Those remain explicit acceptance gaps. This module cannot obtain network authority from pending proof URLs or local receipt state.
