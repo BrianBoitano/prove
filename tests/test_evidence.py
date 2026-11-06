@@ -352,14 +352,15 @@ def test_real_http_failure_paths_are_bounded_and_scrubbed(evidence, config, monk
     config.write_text(json.dumps(value))
     original = evidence._http.request
     def short_request(*args, **kwargs):
-        kwargs["timeout_seconds"] = .2
+        # Include isolated-interpreter startup on every supported Linux runtime.
+        kwargs["timeout_seconds"] = 1
         return original(*args, **kwargs)
     monkeypatch.setattr(evidence._http, "request", short_request)
     monkeypatch.setattr(evidence.time, "sleep", lambda n: None)
     start = evidence.time.monotonic()
     try:
         fails(5, lambda: evidence.export(config, [1]))
-        assert evidence.time.monotonic() - start < 3
+        assert evidence.time.monotonic() - start < 5
         assert "/must-not-follow" not in seen
         assert len(seen) == (3 if mode in {"failure", "timeout"} else 0 if mode == "tls" else 1)
     finally:

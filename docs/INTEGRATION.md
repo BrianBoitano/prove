@@ -30,6 +30,19 @@ Receipt reads use bounded stable regular files and no-follow traversal beneath s
 
 `evidence export --bitcoin-rpc CONFIG --height N [--height N ...] --out FILE` asks an explicitly configured Bitcoin Core node for a bounded coherent snapshot. Endpoint/authentication stay in trusted configuration/cookie files, never command arguments. Those files retain the export API's bounded regular trusted-path semantics. Prove deploys no node and implements no consensus. Caches are external_explicit/cached_only; internal consistency does not authenticate the source or current freshness.
 
+The configuration has exactly these fields. Set the endpoint and cookie path for the node you independently selected; the values below are examples, without credentials:
+
+```json
+{
+  "format": "prove.bitcoin-rpc.v1",
+  "endpoint": "http://127.0.0.1:8332",
+  "cookie_file": "/absolute/path/to/bitcoin/.cookie",
+  "source": "My independently selected validated Bitcoin Core node"
+}
+```
+
+A relative cookie path resolves against the configuration file's directory. Keep the configuration/cookie outside the receipt and any shared feedback. The source text records your description; it does not authenticate the node. `prove inspect receipt` shows required heights under `proofs.manifest.inspection.bitcoin_heights` and `proofs.result.inspection.bitcoin_heights` when attestations are present. Export each required height using repeated `--height`, write the cache outside the receipt, then pass that file explicitly to `prove verify receipt --offline --chain-cache chain.json`. Preserve the source/provenance record separately. A cached view never establishes current-chain freshness.
+
 Action reports contain exactly `format`, `command`, `code`, `registration_id`, `receipt_id`, `local_state`, `output`, `anchor_action`, `data`, `errors`, and `limitations`. Nested paths use `proof.create`/`evidence.export`; unknown command paths use null. IDs remain null until known. Local states are null, initialized, registered, sealed or lock_recovered. Explicit anchor/upgrade commands report the existing registered/sealed state after validating their cores, retaining it if timestamping fails or is interrupted. Output is the selected absolute file destination or preregistration receipt directory; commands with no new destination use null. Anchor states are not_requested, returned, failed or interrupted. Data is non-null only for proof index/size and export tip/heights/trust/freshness. Diagnostics preserve safe schema field locations and explicitly rejected artifact filenames, including colons. Other arbitrary values, schema instance renderings, unknown arguments and authentication/response bodies are omitted. Each diagnostic is bounded to 2048 printable characters.
 
 Statuses: 0 successful requested action/check, 2 invalid input, 3 insufficient evidence, 4 unsupported evidence, 5 operational/internal failure, 130 interruption. Help/version return 0. Local work is not rolled back after optional anchoring failure. A closed stdout may prevent reporting but retains no HTTP child or retry loop.

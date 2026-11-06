@@ -1,6 +1,15 @@
 # Offline quickstart
 
-The supported runtime target is Linux with Python 3.11 through 3.13. This is an unreleased candidate, with distribution and runtime acceptance still separate release gates. Install a reviewed source checkout with `python -m pip install /absolute/path/to/prove`, or a reviewed wheel with `python -m pip install /absolute/path/to/triplepass_prove-0.1.0a1-py3-none-any.whl`. Installation may fetch pinned dependencies. A fully offline installation needs a separately prepared wheelhouse containing Prove and all dependencies, then `python -m pip install --no-index --find-links /absolute/path/to/wheelhouse triplepass-prove==0.1.0a1`. No unpublished PyPI release is assumed.
+The supported runtime target is Linux with Python 3.11 through 3.13. This is an unreleased candidate; see the readiness audit for observed gates. With a supported interpreter, create an isolated environment and install the reviewed wheel:
+
+```sh
+python3 -m venv .venv-prove
+. .venv-prove/bin/activate
+python -m pip install /absolute/path/to/triplepass_prove-0.1.0a1-py3-none-any.whl
+prove --version
+```
+
+Alternatively install a reviewed source checkout with `python -m pip install /absolute/path/to/prove`. Installation may fetch dependencies. A fully offline installation needs a separately prepared wheelhouse containing Prove and all dependencies, then `python -m pip install --no-index --find-links /absolute/path/to/wheelhouse triplepass-prove==0.1.0a1`. No unpublished PyPI release is assumed.
 
 Once installed, this workflow runs in a fresh directory unrelated to any repository. It uses no model, API key or private service. `python -m prove` can replace `prove` in every command.
 

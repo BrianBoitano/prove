@@ -6,7 +6,16 @@ Prove freezes evaluation plans and ordinary output files into standalone receipt
 
 It binds an evaluation plan, recorded artifacts and reported results to commitments with optional OpenTimestamps evidence. Verification distinguishes artifact integrity from claims about execution, model identity, timing and scientific validity.
 
-Version `0.1.0a1` is an unreleased implementation candidate. Install a reviewed local source tree with `python -m pip install .`, or a reviewed wheel with `python -m pip install /absolute/path/to/triplepass_prove-0.1.0a1-py3-none-any.whl`. The supported runtime target is Linux with Python 3.11 through 3.13; distribution and runtime acceptance remain separate release gates. No unpublished PyPI release is assumed.
+Version `0.1.0a1` is an unreleased implementation candidate for Linux with Python 3.11 through 3.13. Use a supported interpreter and install the reviewed wheel in its own environment:
+
+```sh
+python3 -m venv .venv-prove
+. .venv-prove/bin/activate
+python -m pip install /absolute/path/to/triplepass_prove-0.1.0a1-py3-none-any.whl
+prove --version
+```
+
+From a reviewed source checkout, `python -m pip install .` works in the same environment. Installation may fetch dependencies. No unpublished PyPI release is assumed; distribution acceptance and release status are recorded in [the readiness audit](docs/READINESS.md).
 
 The [offline quickstart](docs/QUICKSTART.md) uses only the installed CLI, a fresh manifest and an ordinary output directory. It needs no model, provider account, research checkout or hosted service. `python -m prove` can replace `prove` in every command.
 
