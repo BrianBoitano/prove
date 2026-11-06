@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Callable
 from .errors import ProveError
+from .canonical import MAX_SAFE_INTEGER
 from .paths import validate_path, validate_paths
 
 try:
@@ -255,9 +256,11 @@ class Directory:
             return owned.take(parent), fd, name, parents, identities
 
     def _stream(self, path: str, consume: Callable[[bytes], None], limit: int | None = None,
-                *, persist: bool = False) -> tuple[str, int]:
+                *, persist: bool = False, expected_bytes: int | None = None) -> tuple[str, int]:
         if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 0):
             raise ProveError("read limit must be a nonnegative integer")
+        if expected_bytes is not None and (type(expected_bytes) is not int or not 0 <= expected_bytes <= MAX_SAFE_INTEGER):
+            raise ProveError("expected bytes must be a nonnegative safe integer")
         parent, fd, name, parents, parent_ids = self._open_file(path)
         with _Descriptors() as owned:
             owned.add(parent, f"cannot close parent for {path!r}")
@@ -265,6 +268,8 @@ class Directory:
             try:
                 before = os.fstat(fd)
                 _regular(before, path)
+                if expected_bytes is not None and before.st_size != expected_bytes:
+                    raise ProveError(f"file byte length differs from inventory: {path!r}")
                 if limit is not None and before.st_size > limit:
                     raise ProveError(f"file exceeds read limit: {path!r}")
                 digest, total = hashlib.sha256(), 0
@@ -309,8 +314,8 @@ class Directory:
         self._stream(path, chunks.append, limit)
         return b"".join(chunks)
 
-    def digest(self, path: str) -> tuple[str, int]:
-        return self._stream(path, lambda _: None)
+    def digest(self, path: str, *, expected_bytes: int | None = None) -> tuple[str, int]:
+        return self._stream(path, lambda _: None, expected_bytes=expected_bytes)
 
     def _persist_dirs(self, parts: list[str], expected: tuple[os.stat_result, ...], path: str) -> None:
         """Sync child-to-root through a verified owned chain, including reused dirs."""
