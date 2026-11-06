@@ -393,6 +393,46 @@ def test_failing_fixture_can_omit_all_artifacts_and_score():
     assert api().validate_result(receipt, core) is receipt
 
 
+def test_fixture_payloads_are_closed_unique_and_keep_exact_unicode_strings():
+    validator = api()
+    dataset = {"format": "prove.fixture-dataset.v1", "samples": [
+        {"id": "sample-1", "expected": "e\u0301"},
+    ]}
+    scores = {"format": "prove.fixture-scores.v1", "samples": [
+        {"id": "sample-1", "observed": "é"},
+    ], "aggregate": {"numerator": 0, "denominator": 1}}
+    assert validator.validate_fixture_dataset(dataset) is dataset
+    assert validator.validate_fixture_scores(scores) is scores
+    for value in (dataset, scores):
+        broken = copy.deepcopy(value)
+        broken["samples"].append(copy.deepcopy(broken["samples"][0]))
+        invalid(validator.validate_fixture_dataset if value is dataset else validator.validate_fixture_scores, broken)
+    invalid(validator.validate_fixture_scores, {**scores, "unknown": True})
+    invalid(validator.validate_fixture_scores, {**scores, "format": "prove.fixture-scores.v2"}, code=4)
+    invalid(validator.validate_fixture_scores, {**scores, "aggregate": {"numerator": 0, "denominator": 2}})
+    invalid(validator.validate_fixture_scores, {**scores, "aggregate": {"numerator": 2, "denominator": 1}})
+    invalid(validator.validate_fixture_dataset, {"format": "prove.fixture-dataset.v1", "samples": [
+        {"id": "sample-1", "expected": "x" * (8 * 1024 * 1024)},
+    ]})
+
+
+@pytest.mark.parametrize("function,value,code", [
+    ("validate_fixture_dataset", {"format": "prove.fixture-dataset.v2", "samples": []}, 4),
+    ("validate_fixture_scores", {"format": "prove.fixture-scores.v2", "samples": [], "aggregate": {"numerator": 0, "denominator": 1}}, 4),
+    ("validate_fixture_dataset", {"samples": []}, 2),
+    ("validate_fixture_scores", {"format": 1, "samples": [], "aggregate": {"numerator": 0, "denominator": 1}}, 2),
+    ("validate_fixture_dataset", {"format": "prove.fixture-dataset.v1", "samples": []}, 2),
+    ("validate_fixture_scores", {"format": "prove.fixture-scores.v1", "samples": [], "aggregate": {"numerator": 0, "denominator": 1}}, 2),
+    ("validate_fixture_dataset", {"format": "prove.fixture-dataset.v1", "samples": [{"id": "sample-1", "expected": "x", "extra": True}]}, 2),
+    ("validate_fixture_dataset", {"format": "prove.fixture-dataset.v1", "samples": [{"id": "sample-1"}]}, 2),
+    ("validate_fixture_scores", {"format": "prove.fixture-scores.v1", "samples": [{"id": "sample-1", "observed": "x"}]}, 2),
+    ("validate_fixture_dataset", {"format": "prove.fixture-dataset.v1", "samples": None}, 2),
+    ("validate_fixture_scores", {"format": "prove.fixture-scores.v1", "samples": [{"id": "sample-1", "observed": 1}], "aggregate": {"numerator": False, "denominator": 1}}, 2),
+])
+def test_fixture_payload_discriminators_and_malformed_shapes(function, value, code):
+    invalid(getattr(api(), function), value, code=code)
+
+
 def test_supplied_fixture_score_requires_pinned_dataset_and_complete_aggregate():
     core = manifest(True, True)
     receipt = scored_result(core)

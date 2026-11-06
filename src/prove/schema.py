@@ -20,7 +20,8 @@ _SCHEMA = canonical.loads(
 )
 _VALIDATORS = {
     name: Draft202012Validator({"$defs": _SCHEMA["$defs"], "$ref": f"#/$defs/{name}"})
-    for name in ("manifest", "result", "event", "inclusion", "chain", "inventoryEntry")
+    for name in ("manifest", "result", "event", "inclusion", "chain", "inventoryEntry",
+                 "fixtureDataset", "fixtureScores")
 }
 _PROFILES = ("artifacts-v1", "trace-v1")
 _SCORERS = ("recorded-only-v1", "fixture-exact-v1")
@@ -134,6 +135,41 @@ def validate_inventory(value: dict) -> dict:
             location = ".".join(str(part) for part in error.absolute_path) or path
             raise ProveError(f"invalid inventory entry at {location}: {error.message}")
     return value
+
+
+def _fixture_payload(value: dict, kind: str) -> dict:
+    """Validate one bounded, closed fixture payload without canonicalizing its source bytes."""
+    _require(isinstance(value, dict), f"{kind} must be an object")
+    encoded = canonical.dumps(value)
+    _require(len(encoded) <= 8 * 1024 * 1024, f"{kind} exceeds 8 MiB")
+    expected_format = {"fixtureDataset": "prove.fixture-dataset.v1",
+                       "fixtureScores": "prove.fixture-scores.v1"}[kind]
+    candidate = value.get("format")
+    if isinstance(candidate, str) and candidate != expected_format:
+        raise ProveError(f"unsupported format: {candidate!r}", code=4)
+    error = next(_VALIDATORS[kind].iter_errors(value), None)
+    if error is not None:
+        location = ".".join(str(part) for part in error.absolute_path) or "<root>"
+        raise ProveError(f"invalid {kind} at {location}: {error.message}")
+    samples = value["samples"]
+    _require(len({item["id"] for item in samples}) == len(samples), f"{kind} sample IDs must be unique")
+    aggregate = value.get("aggregate")
+    if aggregate is not None:
+        _require(aggregate["denominator"] == len(samples),
+                 "fixture aggregate denominator must count samples")
+        _require(aggregate["numerator"] <= aggregate["denominator"],
+                 "fixture aggregate numerator exceeds denominator")
+    return value
+
+
+def validate_fixture_dataset(value: dict) -> dict:
+    """Validate a closed fixture dataset payload."""
+    return _fixture_payload(value, "fixtureDataset")
+
+
+def validate_fixture_scores(value: dict) -> dict:
+    """Validate a closed fixture score payload."""
+    return _fixture_payload(value, "fixtureScores")
 
 
 def validate_result(value: dict, manifest: dict) -> dict:
