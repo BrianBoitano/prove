@@ -36,7 +36,7 @@ All fields are required:
 
 Attempt, sample and call IDs match `[a-z0-9][a-z0-9_-]{0,63}`. Artifacts profile uses empty sample_ids. Trace profile requires at least one declared sample. The producer chooses whether to preregister multiple attempts; undeclared attempt IDs cannot be sealed against this manifest. This cannot reveal hidden evaluations. Model names and weight digests identify recorded claims/artifacts, not executed-model attestation.
 
-Each selected attempt is sealed in its own receipt directory. Reuse the same frozen manifest bytes in separate directories to share a registration ID across attempts; do not overwrite one attempt's result with another. `pre-register MANIFEST --out RECEIPT` freezes one copy, and `seal RECEIPT --attempt ID` selects one of its declared attempts (the single declared ID may be the default). Directory names are user-chosen, not security identities. The CLI does not claim to enumerate every receipt issued for a registration.
+Each selected attempt is sealed in its own receipt directory. Reuse the same frozen manifest bytes in separate directories to share a registration ID across attempts; do not overwrite one attempt's result with another. `pre-register MANIFEST --receipt RECEIPT` freezes one copy, and `seal RECEIPT --attempt ID` selects one of its declared attempts (the single declared ID may be the default). Directory names are user-chosen, not security identities. The CLI does not claim to enumerate every receipt issued for a registration.
 
 `fixture-exact-v1` scoring is allowed only with trace-v1 and a non-null dataset digest. Artifacts-v1 uses recorded-only-v1. These are generic profile constraints, not a dependency on a named evaluation harness.
 

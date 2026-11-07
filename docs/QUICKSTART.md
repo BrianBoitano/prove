@@ -33,6 +33,8 @@ prove verify receipt --offline --policy integrity-only
 
 `receipt` is created as a single final directory in its existing parent. Output parents must already exist. `seal` snapshots the external outputs without rewriting them. Reports contain `registration_id` and, after sealing, `receipt_id`. `inspect` is a bounded local presentation and explicitly performs no verification.
 
+Verification checks the copied files under `receipt/artifacts`, not the original `outputs` directory. Editing the original outputs after sealing does not invalidate the receipt; editing its frozen copy does. The retained root `.prove/staging` files are producer recovery checkpoints. They are unnecessary in a read-only sharing copy. See [integration guidance](INTEGRATION.md) for disk usage, portable contents and retrospective sealing of existing results.
+
 Integrity-only verification returns 0 here, checking frozen artifacts and records without timestamps. No score was selected, so scoring is `unavailable`. Explicit recorded-only scores remain `recorded_only`; their meaning or accuracy is not recomputed. Verification does not establish honest execution or model identity.
 
 ```sh

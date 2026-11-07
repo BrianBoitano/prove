@@ -7,6 +7,14 @@ Prove consumes data files from external programs. It does not import a model SDK
 3. Run `prove seal receipt --artifacts outputs`, with explicit data options where applicable.
 4. Share the receipt. Verify with an explicit policy and independently selected chain evidence.
 
+For outputs that already exist, describe the operation as retrospective sealing. Before freezing the manifest, set `manifest.metadata.evaluation_timing` to `"retrospective"`. For example, the metadata object may include:
+
+```json
+{"evaluation_timing": "retrospective"}
+```
+
+This is a structured, hashed self-declaration using the existing non-normative metadata field. Preserve any other metadata entries. It does not establish when the outputs were created or turn retrospective sealing into pre-execution preregistration. Version0.1.0a1 has no dedicated `--retrospective` flag or report field. Read the frozen manifest for this declaration; `inspect` does not dump arbitrary metadata.
+
 `seal` maps data-only options directly to the store API: `--attempt ID`, `--outcome completed|failed|aborted|budget_exceeded`, `--reason TEXT`, `--events FILE`, `--roles FILE`, `--media-types FILE`, `--score-path REL`, `--aggregate FILE`, and `--metadata FILE`. Outcome defaults to completed and reason to absent. Unsuccessful outcomes require the reason and evidence expected by the protocol. See `prove COMMAND --help` for exact arguments.
 
 JSON options are strict data limited to 8 MiB, rejecting duplicate keys, floating-point numbers and unsupported values. Role/media-type maps contain artifact-relative paths and string values. Events are JSONL up to 64 MiB, with a final LF for nonempty input; import mode accepts ordinary JSON whitespace with strict value rules. Trace lifecycle and bindings must already be correct. Prove never invents terminal events or infers scores/roles from filenames.
@@ -19,6 +27,12 @@ prove seal receipt --artifacts outputs --score-path metrics.json --aggregate agg
 ```
 
 The manifest's scorer profile controls interpretation. With `recorded-only-v1`, the aggregate is recorded without recomputing the metric. Omitting `--score-path` yields an unavailable score even when a file is named metrics.json. The separate `fixture-exact-v1` rule recomputes only its closed deterministic fixture format. It does not verify a model ran or authenticate producer labels/observations.
+
+`seal --artifacts outputs` copies those files into `receipt/artifacts`. Full verification checks that frozen copy. Moving, editing or deleting the original `outputs` directory afterward does not change the receipt's validity. Changing `receipt/artifacts` does. There is no `verify --artifacts` option to compare an external working directory. Use a new registration/receipt for a new experiment, or a separate receipt for each already declared attempt; do not overwrite sealed artifacts.
+
+The producer retains `.prove/staging` and its journal after a successful seal. These are durable recovery checkpoints, not a sign that the seal failed. Staging can contain another complete artifact copy, and retries can retain additional candidate stages, so account for their disk usage. Version0.1.0a1 has no automatic staging cleanup command. Keep the original producer state for retry and recovery.
+
+For a read-only portable receipt, include `manifest.json`, `result.json`, `records.jsonl`, the entire `artifacts/` tree and `proofs/` when present. The root `.prove/` directory is not needed for verification and is excluded from receipt identity. Omitting private state from a sharing copy is distinct from deleting recovery state in the producer's original receipt. Preserve any committed artifact directory named `.prove` inside `artifacts/`; only the receipt's root `.prove` is private state.
 
 Receipt reads use bounded stable regular files and no-follow traversal beneath selected opened roots. Absolute root ancestors are selected trusted paths, not a sandbox. Receipt creation creates only the selected final directory in an existing parent. Output files publish canonical bytes atomically without a trailing LF, never overwriting an existing file. Stdout machine reports have one LF. Proof outputs must be outside the operated receipt, including artifacts, proofs and local-state directories; identity checks include bind aliases. Do not redirect reports into the receipt either.
 
